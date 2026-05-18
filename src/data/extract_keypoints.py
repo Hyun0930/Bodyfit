@@ -154,7 +154,19 @@ def _apply_euro_filter(kps: np.ndarray, fps: float) -> np.ndarray:
     return out
 
 
-def process_exercise(exercise: str) -> None:
+def _process_one(args_tuple: tuple) -> tuple[str, bool]:
+    """멀티프로세싱 worker. (video_path, out_path) → (name, success)"""
+    vp, out_path = args_tuple
+    if out_path.exists():
+        return vp.name, True  # 이미 처리됨
+    kps = extract_keypoints(vp)
+    if kps is None:
+        return vp.name, False
+    np.save(out_path, kps)
+    return vp.name, True
+
+
+def process_exercise(exercise: str, workers: int = 1) -> None:
     raw_dir = RAW_DIR / exercise
     out_dir = KEYPOINTS_DIR / exercise
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -164,21 +176,30 @@ def process_exercise(exercise: str) -> None:
         print(f"[{exercise}] no .mp4 files in {raw_dir}")
         return
 
+    tasks = [(vp, out_dir / f"{vp.stem}.npy") for vp in videos]
+
     failed = []
     saved = 0
-    for vp in videos:
-        out_path = out_dir / f"{vp.stem}.npy"
-        if out_path.exists():
-            continue  # 이미 처리됨
 
-        kps = extract_keypoints(vp)
-        if kps is None:
-            failed.append(vp.name)
-            print(f"  SKIP {vp.name} (low visibility)")
-        else:
-            np.save(out_path, kps)
-            saved += 1
-            print(f"  OK   {vp.name} → {kps.shape}")
+    if workers > 1:
+        from multiprocessing import Pool
+        with Pool(processes=workers) as pool:
+            for name, ok in pool.imap_unordered(_process_one, tasks):
+                if ok:
+                    saved += 1
+                    print(f"  OK   {name}")
+                else:
+                    failed.append(name)
+                    print(f"  SKIP {name} (low visibility)")
+    else:
+        for task in tasks:
+            name, ok = _process_one(task)
+            if ok:
+                saved += 1
+                print(f"  OK   {name}")
+            else:
+                failed.append(name)
+                print(f"  SKIP {name} (low visibility)")
 
     if failed:
         (out_dir / "failed.txt").write_text("\n".join(failed))
@@ -190,6 +211,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--exercise", choices=EXERCISES + ["all"], default="all")
     parser.add_argument("--video", type=Path, default=None, help="단일 영상 테스트용")
+    parser.add_argument("--workers", type=int, default=1, help="병렬 처리 프로세스 수 (서버용)")
     args = parser.parse_args()
 
     if args.video:
@@ -212,7 +234,7 @@ def main() -> None:
 
     targets = EXERCISES if args.exercise == "all" else [args.exercise]
     for ex in targets:
-        process_exercise(ex)
+        process_exercise(ex, workers=args.workers)
 
 
 if __name__ == "__main__":
