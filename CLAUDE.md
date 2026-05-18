@@ -198,7 +198,7 @@ bodyfit/
 
 ### 우선순위 원칙
 
-1. **구현 가능성 우선** — 학교 프로젝트이므로 이론적 완성도보다 실제 동작하는 코드가 중요. CVAE fallback이 항상 뒤를 받쳐줌.
+1. **계획서 범위 엄수** — 빅4 전종목, BC-STNF, Ablation 5종 모두 계획서대로 구현. 범위 축소는 감점 사유이므로 절대 제안하지 말 것.
 2. **Positive-only 학습** — 오류 라벨 생성하지 말 것. 학습 데이터는 무조건 정상으로 처리.
 3. **체형 조건화** — FiLM conditioning이 핵심 novelty. 단순 concat으로 대체하지 말 것.
 4. **exact log-likelihood** — Flow 모델의 핵심. reconstruction error(VAE 방식)로 대체하면 novelty 소멸.
@@ -227,25 +227,14 @@ x_b = x_b * exp(s(x_a, c)) + t(x_a, c)  # c로 조건화
 log_det = sum(s)            # log-determinant
 ```
 
-### 개발 단계 우선순위 (현재 기준: 2026-05-18)
+### 개발 순서
 
-원래 8주 계획(4/21~6/15) 대비 일정이 밀린 상태. 일정 단축이 필요하므로:
-
-1. **즉시**: 데이터 수집 스크립트 + MediaPipe 전처리 파이프라인
-2. **다음**: body feature 추출 + CVAE baseline (MVP 확보)
-3. **이후**: BC-STNF 구현 + 학습
-4. **마지막**: Ablation + 평가 + LLM 통합
-
-OHP는 데이터 부족 시 제외 가능 (빅3로 축소). 계획 B 항상 염두.
-
-### 주요 리스크 대응
-
-| 리스크 | 대응 |
-|--------|------|
-| Flow 학습 불안정 | CVAE baseline 결과로 제출 가능 |
-| 데이터 부족 | 빅4 → 빅3 (OHP 제외) |
-| 체형 feature 노이즈 | continuous → discrete cluster 단순화 |
-| 도메인 갭 (선수→일반) | 소량 fine-tuning 데이터 확보 |
+1. 데이터 수집 스크립트 (yt-dlp)
+2. MediaPipe 전처리 파이프라인 + body feature 추출
+3. CVAE baseline
+4. BC-STNF 구현 + 학습
+5. Ablation 5종 + 평가
+6. LLM 통합 + FastAPI
 
 ### 참고 문헌
 

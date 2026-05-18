@@ -1,0 +1,27 @@
+# BodyFit — requirements (Mac M3 / Apple Silicon 기준)
+# PyTorch는 별도 설치: pip install torch torchvision torchaudio
+
+# --- Data Pipeline ---
+yt-dlp
+mediapipe>=0.10
+opencv-python
+numpy
+scipy
+tqdm
+
+# --- Model / Training ---
+# torch, torchvision, torchaudio  ← 별도 설치
+torch-geometric
+scikit-learn
+
+# --- Evaluation ---
+matplotlib
+seaborn
+
+# --- LLM ---
+anthropic
+
+# --- API ---
+fastapi
+uvicorn[standard]
+python-multipart

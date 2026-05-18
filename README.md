@@ -51,6 +51,14 @@ bodyfit/
 ## Setup
 
 ```bash
+# 1. conda 환경 생성 (Python 3.11 필수 — MediaPipe 호환)
+conda create -n bodyfit python=3.11 -y
+conda activate bodyfit
+
+# 2. PyTorch 설치 (Mac M3 — MPS 백엔드 자동 포함)
+pip install torch torchvision torchaudio
+
+# 3. 나머지 패키지
 pip install -r requirements.txt
 ```
 
