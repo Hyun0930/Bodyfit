@@ -5,17 +5,22 @@ Usage:
     python src/data/extract_keypoints.py --exercise squat
     python src/data/extract_keypoints.py --exercise all
     python src/data/extract_keypoints.py --exercise squat --video path/to/video.mp4  # 단일 테스트
+
+MediaPipe 0.10+ Tasks API 사용 — models_mediapipe/pose_landmarker_heavy.task 필요
 """
 import argparse
 from pathlib import Path
 
 import cv2
 import mediapipe as mp
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision as mp_vision
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = ROOT / "data" / "raw"
 KEYPOINTS_DIR = ROOT / "data" / "keypoints"
+MODEL_PATH = ROOT / "models_mediapipe" / "pose_landmarker_heavy.task"
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]
 
@@ -52,40 +57,53 @@ class OneEuroFilter:
         return self._x
 
 
+def _build_landmarker() -> mp_vision.PoseLandmarker:
+    base_opts = mp_python.BaseOptions(model_asset_path=str(MODEL_PATH))
+    opts = mp_vision.PoseLandmarkerOptions(
+        base_options=base_opts,
+        running_mode=mp_vision.RunningMode.VIDEO,
+        num_poses=1,
+        min_pose_detection_confidence=0.5,
+        min_pose_presence_confidence=0.5,
+        min_tracking_confidence=0.5,
+    )
+    return mp_vision.PoseLandmarker.create_from_options(opts)
+
+
 def extract_keypoints(video_path: Path) -> np.ndarray | None:
     """
     단일 영상에서 keypoint 추출.
     Returns:
         (T, 33, 4) — x, y, z, visibility  또는 품질 미달 시 None
     """
-    pose = mp.solutions.pose.Pose(
-        model_complexity=1,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
-        static_image_mode=False,
-    )
-
     cap = cv2.VideoCapture(str(video_path))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     frames = []
+    frame_idx = 0
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = pose.process(rgb)
-        if result.pose_landmarks:
-            kp = np.array(
-                [[lm.x, lm.y, lm.z, lm.visibility] for lm in result.pose_landmarks.landmark],
-                dtype=np.float32,
-            )  # (33, 4)
-        else:
-            kp = np.full((33, 4), np.nan, dtype=np.float32)
-        frames.append(kp)
+    with _build_landmarker() as landmarker:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+            timestamp_ms = int(frame_idx * 1000 / fps)
+            result = landmarker.detect_for_video(mp_image, timestamp_ms)
+
+            if result.pose_landmarks:
+                lms = result.pose_landmarks[0]  # NormalizedLandmark list
+                kp = np.array(
+                    [[lm.x, lm.y, lm.z, lm.visibility] for lm in lms],
+                    dtype=np.float32,
+                )  # (33, 4)
+            else:
+                kp = np.full((33, 4), np.nan, dtype=np.float32)
+
+            frames.append(kp)
+            frame_idx += 1
 
     cap.release()
-    pose.close()
 
     if not frames:
         return None
@@ -180,6 +198,16 @@ def main() -> None:
             print("FAILED — low visibility or no pose detected")
         else:
             print(f"OK — shape: {kps.shape}")
+            # keypoints 디렉토리에 저장 (exercise 추론: 부모 디렉토리명 사용)
+            exercise_guess = args.video.parent.name
+            if exercise_guess in EXERCISES:
+                out_dir = KEYPOINTS_DIR / exercise_guess
+            else:
+                out_dir = KEYPOINTS_DIR / "test"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_dir / f"{args.video.stem}.npy"
+            np.save(out_path, kps)
+            print(f"saved → {out_path}")
         return
 
     targets = EXERCISES if args.exercise == "all" else [args.exercise]
