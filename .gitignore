@@ -25,6 +25,9 @@ data/test/
 # Model checkpoints
 checkpoints/
 
+# MediaPipe model binary (large, re-downloadable)
+models_mediapipe/
+
 # Results
 results/
 
