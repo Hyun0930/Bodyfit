@@ -7,6 +7,7 @@ Usage:
 """
 import argparse
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -15,8 +16,9 @@ from scipy.signal import find_peaks
 from body_feature import extract_body_feature
 
 ROOT = Path(__file__).resolve().parents[2]
-KEYPOINTS_DIR = ROOT / "data" / "keypoints"
-PROCESSED_DIR = ROOT / "data" / "processed"
+_DATA_ROOT = Path(os.environ["BODYFIT_DATA"]) if "BODYFIT_DATA" in os.environ else ROOT / "data"
+KEYPOINTS_DIR = _DATA_ROOT / "keypoints"
+PROCESSED_DIR = _DATA_ROOT / "processed"
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]
 

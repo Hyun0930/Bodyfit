@@ -9,6 +9,7 @@ Usage:
 MediaPipe 0.10+ Tasks API 사용 — models_mediapipe/pose_landmarker_heavy.task 필요
 """
 import argparse
+import os
 from pathlib import Path
 
 import cv2
@@ -18,8 +19,9 @@ from mediapipe.tasks.python import vision as mp_vision
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-RAW_DIR = ROOT / "data" / "raw"
-KEYPOINTS_DIR = ROOT / "data" / "keypoints"
+_DATA_ROOT = Path(os.environ["BODYFIT_DATA"]) if "BODYFIT_DATA" in os.environ else ROOT / "data"
+RAW_DIR = _DATA_ROOT / "raw"
+KEYPOINTS_DIR = _DATA_ROOT / "keypoints"
 MODEL_PATH = ROOT / "models_mediapipe" / "pose_landmarker_heavy.task"
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]

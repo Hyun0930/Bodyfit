@@ -7,12 +7,14 @@ Usage:
 """
 import argparse
 import csv
+import os
 import subprocess
 import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RAW_DIR = ROOT / "data" / "raw"
+_DATA_ROOT = Path(os.environ["BODYFIT_DATA"]) if "BODYFIT_DATA" in os.environ else ROOT / "data"
+RAW_DIR = _DATA_ROOT / "raw"
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]
 

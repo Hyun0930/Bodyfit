@@ -8,6 +8,16 @@ set -e
 WORKERS=${1:-$(nproc)}   # 인자 없으면 전체 코어 사용
 MAX_VIDEOS=300            # 종목당 최대 영상 수
 
+# Backend.AI: vfolder 경로를 BODYFIT_DATA로 지정
+# 예) export BODYFIT_DATA=/home/user/vfolder/bodyfit_data
+# 미설정 시 프로젝트 루트의 data/ 사용
+if [ -n "$BODYFIT_DATA" ]; then
+    echo "Data root: $BODYFIT_DATA (vfolder)"
+    mkdir -p "$BODYFIT_DATA"/{raw,keypoints,processed,test}/{squat,bench,deadlift,ohp}
+else
+    echo "Data root: ./data (local)"
+fi
+
 echo "=== BodyFit Pipeline ==="
 echo "Workers: $WORKERS"
 echo "Max videos per exercise: $MAX_VIDEOS"
