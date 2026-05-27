@@ -13,10 +13,19 @@ echo "Python: $PY_VER at $PYTHON"
 # pip 업그레이드
 $PYTHON -m pip install --upgrade pip -q
 
-# PyTorch (CUDA 12.1 기준 — 서버 CUDA 버전에 맞게 수정)
-echo ">>> Installing PyTorch (CUDA 12.1)..."
-$PYTHON -m pip install torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/cu121 -q
+# PyTorch — CUDA 버전 자동 감지
+echo ">>> Installing PyTorch..."
+CUDA_VER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
+if [ -z "$CUDA_VER" ]; then
+    echo "  No GPU detected, installing CPU-only PyTorch"
+    $PYTHON -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu -q
+else
+    CUDA_TAG=$(nvcc --version 2>/dev/null | grep "release" | sed 's/.*release \([0-9]*\)\.\([0-9]*\).*/cu\1\2/')
+    CUDA_TAG=${CUDA_TAG:-cu121}  # fallback
+    echo "  CUDA detected: $CUDA_TAG"
+    $PYTHON -m pip install torch torchvision torchaudio \
+        --index-url https://download.pytorch.org/whl/$CUDA_TAG -q
+fi
 
 # 공통 패키지
 echo ">>> Installing requirements..."
