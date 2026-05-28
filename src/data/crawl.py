@@ -110,7 +110,7 @@ def crawl_exercise(exercise: str, max_videos: int) -> None:
     csv_path = out_dir / "metadata.csv"
 
     existing = _load_existing(csv_path)
-    downloaded = 0
+    downloaded = len(existing)
 
     for query in QUERIES[exercise]:
         if downloaded >= max_videos:

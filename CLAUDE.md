@@ -288,6 +288,7 @@ log_det = sum(s)            # log-determinant
 | MediaPipe CUDA 미지원 | Linux에서 CUDA 백엔드 없음 | CPU 멀티프로세싱으로 대체 |
 | vfolder/코드 경로 분리 | Backend.AI ephemeral 컨테이너 | `BODYFIT_DATA` 환경변수로 데이터 경로 분리 |
 | `crawl.py` TypeError: 'int' object is not subscriptable | `--get-id/title/duration`과 `--print` 동시 사용 시 yt-dlp가 duration을 별도 숫자 라인으로 출력 → `json.loads("120")` = int → `item["id"]` 실패 | `--get-*` 플래그 전부 제거, `--print`만 사용 (commit f82c5a8) |
+| `crawl.py` 재실행 시 max_videos 초과 | `downloaded = 0`으로 시작해 기존 파일을 카운트에 미포함 → 재검색 결과가 안 겹치면 기존+300개 다운 | `downloaded = len(existing)`으로 초기화 |
 
 ### 참고 문헌
 
