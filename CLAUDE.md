@@ -236,6 +236,58 @@ log_det = sum(s)            # log-determinant
 5. Ablation 5종 + 평가
 6. LLM 통합 + FastAPI
 
+---
+
+## 구현 현황 (2026-05-28)
+
+### 완료
+
+#### 환경
+- conda 환경 `bodyfit` (Python 3.11, PyTorch 2.12 + MPS) — 맥북 로컬
+- Backend.AI 서버: 24.09 이미지 (Python 3.10, CUDA 12.6), CPU 48코어, RAM 64GiB
+- GitHub: https://github.com/Hyun0930/Bodyfit.git (커밋 8개)
+
+#### Phase 1 — 데이터 파이프라인 (`src/data/`)
+
+| 파일 | 역할 | 상태 |
+|------|------|------|
+| `crawl.py` | yt-dlp 종목별 크롤링, metadata.csv, 중복 방지 | ✅ 완료 |
+| `extract_keypoints.py` | MediaPipe Tasks API (0.10+), 1€ filter, 멀티프로세싱 `--workers` | ✅ 완료 |
+| `preprocess.py` | hip-center 정규화, find_peaks rep 분할, 64프레임 resample | ✅ 완료 |
+| `body_feature.py` | scale-invariant 체형 7차원 벡터 추출 | ✅ 완료 |
+| `__init__.py` | `BodyFitDataset` (torch Dataset), train/val split | ✅ 완료 |
+
+**파이프라인 검증 완료**: (15821, 33, 4) → 526 reps → pose(64,33,3) + body(7,)
+
+#### 서버 스크립트
+- `setup_server.sh` — 환경 세팅 (CUDA 자동 감지, MediaPipe 모델 다운, 디렉토리 생성)
+- `run_pipeline.sh` — crawl → extract → preprocess 전체 자동화, nohup 지원
+
+### 진행 중
+
+- **Backend.AI 서버에서 데이터 수집 실행 중** (2026-05-28 10:49 KST 시작)
+  - PID 447, nohup 백그라운드 실행
+  - 44 workers, CPU 48코어
+  - 로그: `/home/work/body_fit/pipeline.log`
+  - vfolder: `body_fit` → `/home/work/body_fit`
+  - 예상 완료: 크롤링(~2시간) + keypoint 추출(~5시간) + 전처리(~30분)
+
+### 대기 중 (데이터 수집 완료 후)
+
+- [ ] Phase 2: CVAE baseline (`src/models/cvae.py`, `src/training/train_cvae.py`)
+- [ ] Phase 3: BC-STNF 구현 (`body_encoder.py`, `st_gcn.py`, `realnvp.py`, `bc_stnf.py`)
+- [ ] Phase 4: 학습 + Ablation 5종
+- [ ] Phase 5: LLM 통합 + FastAPI
+
+### 주요 기술 결정 및 트러블슈팅
+
+| 이슈 | 원인 | 해결 |
+|------|------|------|
+| `mp.solutions` AttributeError | MediaPipe 0.10+에서 solutions API 제거 | Tasks API + pose_landmarker_heavy.task 사용 |
+| 맥북 데이터 처리 9.5일 | MediaPipe CPU 처리 속도 한계 | Backend.AI 서버 44 worker 멀티프로세싱 |
+| MediaPipe CUDA 미지원 | Linux에서 CUDA 백엔드 없음 | CPU 멀티프로세싱으로 대체 |
+| vfolder/코드 경로 분리 | Backend.AI ephemeral 컨테이너 | `BODYFIT_DATA` 환경변수로 데이터 경로 분리 |
+
 ### 참고 문헌
 
 - [STG-NF] Hirschorn & Avidan. Normalizing Flows for Human Pose Anomaly Detection. ICCV 2023
