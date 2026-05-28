@@ -64,13 +64,14 @@ echo ""
 echo "=== Pipeline Complete: $(date) ==="
 echo ""
 echo "--- processed rep counts ---"
+PROC_DIR="${BODYFIT_DATA:-./data}/processed"
 for ex in squat bench deadlift ohp; do
-    count=$(ls data/processed/$ex/*.npz 2>/dev/null | wc -l)
+    count=$(ls "$PROC_DIR/$ex/"*.npz 2>/dev/null | wc -l)
     echo "  $ex: $count reps"
 done
 echo ""
 echo "--- disk usage ---"
-du -sh data/processed/
+du -sh "$PROC_DIR"
 echo ""
 echo "Download command (run on MacBook):"
 echo "  scp -r <server>:<path>/data/processed ./data/"

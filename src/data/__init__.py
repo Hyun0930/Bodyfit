@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -6,7 +7,8 @@ import torch
 from torch.utils.data import Dataset, Subset
 
 ROOT = Path(__file__).resolve().parents[2]
-PROCESSED_DIR = ROOT / "data" / "processed"
+_DATA_ROOT = Path(os.environ["BODYFIT_DATA"]) if "BODYFIT_DATA" in os.environ else ROOT / "data"
+PROCESSED_DIR = _DATA_ROOT / "processed"
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]
 

@@ -57,7 +57,10 @@ def normalize(kps: np.ndarray) -> np.ndarray:
 
     # 어깨너비 1.0으로 스케일 (keypoint 11, 12 = 좌우 어깨)
     shoulder_w = np.linalg.norm(kps[:, 11, :2] - kps[:, 12, :2], axis=-1)  # (T,)
-    scale = 1.0 / (shoulder_w.mean() + 1e-6)
+    mean_sw = shoulder_w.mean()
+    if mean_sw < 0.01:  # 측면 영상 등 어깨 겹침 → 스킵 신호로 1.0 유지
+        return kps[:, :, :3]
+    scale = 1.0 / mean_sw
     kps[:, :, :3] *= scale
 
     return kps[:, :, :3]  # (T, 33, 3)
@@ -114,6 +117,10 @@ def process_file(npy_path: Path, exercise: str, out_dir: Path) -> int:
     video_id = npy_path.stem
     saved = 0
     for i, rep in enumerate(reps):
+        out_path = out_dir / f"{video_id}_rep{i:02d}.npz"
+        if out_path.exists():  # 이미 처리된 rep 스킵
+            saved += 1
+            continue
         pose = resample(rep)  # (64, 33, 3)
         meta = {
             "video_id": video_id,
@@ -121,7 +128,6 @@ def process_file(npy_path: Path, exercise: str, out_dir: Path) -> int:
             "exercise": exercise,
             "n_original_frames": int(rep.shape[0]),
         }
-        out_path = out_dir / f"{video_id}_rep{i:02d}.npz"
         np.savez_compressed(out_path, pose=pose, body=body, meta=json.dumps(meta))
         saved += 1
 
