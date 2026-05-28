@@ -95,12 +95,12 @@ class STGCNBlock(nn.Module):
 
 
 class STGCN(nn.Module):
-    """ST-GCN × 2: pose(B,64,33,3) → feat(B,64,33,64)"""
+    """ST-GCN × 2: pose(B,64,33,3) → feat(B,64,33,4)"""
 
     def __init__(self, c_dim: int = 16):
         super().__init__()
-        self.block1 = STGCNBlock(3, 32, c_dim)
-        self.block2 = STGCNBlock(32, 64, c_dim)
+        self.block1 = STGCNBlock(3, 8, c_dim)
+        self.block2 = STGCNBlock(8, 4, c_dim)
 
     def forward(self, pose: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
         """

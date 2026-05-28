@@ -7,22 +7,20 @@ from src.models.st_gcn import STGCN
 from src.models.realnvp import ConditionalRealNVP
 
 _PRIOR = Normal(0, 1)
-# ST-GCN 출력 (B,64,33,64) → mean over (T,J) → (B,64): Flow 입력 차원
-FLOW_DIM = 64
+# ST-GCN 출력 (B,64,33,4) flatten → Flow 입력 차원
+FLOW_DIM = 64 * 33 * 4  # 8,448
 
 
 class BCSTNF(nn.Module):
     """Body-Conditioned Spatio-Temporal Normalizing Flow
 
     A(x) = -log P(pose | body)
-    ST-GCN 출력을 (T,J) 평균 풀링해 64차원으로 압축 후 Flow 적용.
-    Heatmap은 anomaly_score의 원본 pose에 대한 기울기로 계산.
     """
 
     def __init__(self, n_coupling: int = 6):
         super().__init__()
         self.body_enc = BodyEncoder()                              # 7 → 16
-        self.stgcn = STGCN()                                      # (B,64,33,3) → (B,64,33,64)
+        self.stgcn = STGCN()                                      # (B,64,33,3) → (B,64,33,4)
         self.flow = ConditionalRealNVP(FLOW_DIM, c_dim=16, n_coupling=n_coupling)
 
     def forward(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
@@ -35,9 +33,8 @@ class BCSTNF(nn.Module):
             anomaly_score: (B,)  — -log P(pose|body)
         """
         c = self.body_enc(body)                                   # (B, 16)
-        feat = self.stgcn(pose, c)                                # (B, 64, 33, 64)
-        h = feat.mean(dim=(1, 2))                                 # (B, 64) — (T,J) 평균 풀링
-        z, log_det = self.flow(h, c)                              # z: (B,64), log_det: (B,)
+        feat = self.stgcn(pose, c)                                # (B, 64, 33, 4)
+        z, log_det = self.flow(feat.flatten(1), c)                # z: (B,8448), log_det: (B,)
         log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det       # (B,)
         return -log_prob
 
