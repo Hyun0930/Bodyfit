@@ -8,6 +8,20 @@ set -e
 WORKERS=${1:-$(nproc)}   # 인자 없으면 전체 코어 사용
 MAX_VIDEOS=300            # 종목당 최대 영상 수
 
+# 쿠키 파일 경로 (YouTube 봇 감지 우회)
+# vfolder에 업로드 후 자동으로 사용됨
+COOKIES_PATH="${BODYFIT_DATA:-./data}/../cookies.txt"
+if [ -f "$COOKIES_PATH" ]; then
+    COOKIES_OPT="--cookies $COOKIES_PATH"
+    echo "Cookies: $COOKIES_PATH (found)"
+elif [ -f "/home/work/body_fit/cookies.txt" ]; then
+    COOKIES_OPT="--cookies /home/work/body_fit/cookies.txt"
+    echo "Cookies: /home/work/body_fit/cookies.txt (found)"
+else
+    COOKIES_OPT=""
+    echo "Cookies: not found (bot detection may block downloads)"
+fi
+
 # Backend.AI: vfolder 경로를 BODYFIT_DATA로 지정
 # 예) export BODYFIT_DATA=/home/user/vfolder/bodyfit_data
 # 미설정 시 프로젝트 루트의 data/ 사용
@@ -33,7 +47,7 @@ fi
 
 # Step 1: 크롤링
 echo "=== [1/3] Crawling ==="
-python3 src/data/crawl.py --exercise all --max $MAX_VIDEOS
+python3 src/data/crawl.py --exercise all --max $MAX_VIDEOS $COOKIES_OPT
 echo ""
 
 # Step 2: Keypoint 추출 (멀티프로세싱)

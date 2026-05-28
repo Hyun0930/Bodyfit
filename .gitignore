@@ -34,6 +34,8 @@ results/
 # Secrets / API keys
 .env
 *.env
+cookies.txt
+*_cookies.txt
 
 # macOS
 .DS_Store
