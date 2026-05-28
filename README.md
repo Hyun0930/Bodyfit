@@ -62,6 +62,27 @@ pip install torch torchvision torchaudio
 pip install -r requirements.txt
 ```
 
+## Troubleshooting
+
+### `TypeError: 'int' object is not subscriptable` — crawl.py
+
+**발생 위치**: `src/data/crawl.py` `_search_video_ids()` → `item["id"]`
+
+**원인**: yt-dlp에서 `--get-id`, `--get-title`, `--get-duration`과 `--print`를 동시에 사용하면 충돌 발생.
+`--get-duration`이 duration을 별도 숫자 라인(`"120"`)으로 추가 출력하고, `json.loads("120")`이 int를 반환해서 딕셔너리 접근 시 TypeError.
+
+**해결**: `--get-*` 플래그 전부 제거, `--print`만 사용.
+
+```python
+# 수정 전 (오류)
+cmd = ["yt-dlp", ..., "--get-id", "--get-title", "--get-duration", "--print", '{"id":...}']
+
+# 수정 후 (정상)
+cmd = ["yt-dlp", ..., "--print", '{"id":"%(id)s","title":"%(title)s","duration":%(duration)s}']
+```
+
+---
+
 ## References
 
 - Hirschorn & Avidan. Normalizing Flows for Human Pose Anomaly Detection. ICCV 2023

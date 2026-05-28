@@ -287,6 +287,7 @@ log_det = sum(s)            # log-determinant
 | 맥북 데이터 처리 9.5일 | MediaPipe CPU 처리 속도 한계 | Backend.AI 서버 44 worker 멀티프로세싱 |
 | MediaPipe CUDA 미지원 | Linux에서 CUDA 백엔드 없음 | CPU 멀티프로세싱으로 대체 |
 | vfolder/코드 경로 분리 | Backend.AI ephemeral 컨테이너 | `BODYFIT_DATA` 환경변수로 데이터 경로 분리 |
+| `crawl.py` TypeError: 'int' object is not subscriptable | `--get-id/title/duration`과 `--print` 동시 사용 시 yt-dlp가 duration을 별도 숫자 라인으로 출력 → `json.loads("120")` = int → `item["id"]` 실패 | `--get-*` 플래그 전부 제거, `--print`만 사용 (commit f82c5a8) |
 
 ### 참고 문헌
 
