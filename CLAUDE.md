@@ -245,9 +245,9 @@ log_det = sum(s)            # log-determinant
 #### 환경
 - conda 환경 `bodyfit` (Python 3.11, PyTorch 2.12 + MPS) — 맥북 로컬
 - Backend.AI 서버: 24.09 이미지 (Python 3.10, CUDA 12.6), CPU 48코어, RAM 64GiB
-- GitHub: https://github.com/Hyun0930/Bodyfit.git (커밋 8개)
+- GitHub: https://github.com/Hyun0930/Bodyfit.git (최신 커밋 0ec1ea3)
 
-#### Phase 1 — 데이터 파이프라인 (`src/data/`)
+#### Phase 1 — 데이터 파이프라인 (`src/data/`) ✅ 완료
 
 | 파일 | 역할 | 상태 |
 |------|------|------|
@@ -263,21 +263,41 @@ log_det = sum(s)            # log-determinant
 - `setup_server.sh` — 환경 세팅 (CUDA 자동 감지, MediaPipe 모델 다운, 디렉토리 생성)
 - `run_pipeline.sh` — crawl → extract → preprocess 전체 자동화, nohup 지원
 
+#### Phase 2 — 모델 (`src/models/`) ✅ 완료
+
+| 파일 | 역할 | 상태 |
+|------|------|------|
+| `cvae.py` | CVAE baseline (Encoder/Decoder/anomaly_score/compute_loss) | ✅ 완료 |
+| `body_encoder.py` | MLP 7→32→16, LayerNorm | ✅ 완료 |
+| `st_gcn.py` | ST-GCN × 2 (3→8→4채널) + FiLM conditioning, BlazePose 인접행렬 | ✅ 완료 |
+| `realnvp.py` | Conditional RealNVP × 6 coupling layers | ✅ 완료 |
+| `bc_stnf.py` | BC-STNF 통합 모델, joint_attribution heatmap | ✅ 완료 |
+
+**BC-STNF 설계 결정**:
+- ST-GCN 출력 채널: 3→8→4 (D=8,448) — 원래 64채널은 Linear weight 18GB로 OOM
+- Flow 입력: ST-GCN 출력 전체 flatten (mean pooling 없음) — P(pose|body) 직접 모델링
+- 파라미터 총 321M (~1.2GB weights), 맥북 M3 학습 가능
+- 채널 수는 하이퍼파라미터 — 데이터 학습 후 성능 보며 조정 가능
+
+#### Phase 3 — 학습 스크립트 (`src/training/`) ✅ 완료
+
+| 파일 | 역할 | 상태 |
+|------|------|------|
+| `train_cvae.py` | AdamW + CosineAnnealing, best checkpoint 저장, 학습 곡선 | ✅ 완료 |
+| `train_bc_stnf.py` | AdamW + CosineAnnealing + K-means oversampling, grad clip 1.0 | ✅ 완료 |
+
 ### 진행 중
 
-- **Backend.AI 서버에서 데이터 수집 실행 중** (2026-05-28 10:49 KST 시작)
-  - PID 447, nohup 백그라운드 실행
-  - 44 workers, CPU 48코어
+- **Backend.AI 서버에서 데이터 수집 실행 중** (2026-05-28 재시작)
+  - 44 workers, CPU 48코어, nohup 백그라운드
   - 로그: `/home/work/body_fit/pipeline.log`
-  - vfolder: `body_fit` → `/home/work/body_fit`
-  - 예상 완료: 크롤링(~2시간) + keypoint 추출(~5시간) + 전처리(~30분)
+  - squat 크롤링 9/300 확인 → 정상 동작 중
 
-### 대기 중 (데이터 수집 완료 후)
+### 다음 단계
 
-- [ ] Phase 2: CVAE baseline (`src/models/cvae.py`, `src/training/train_cvae.py`)
-- [ ] Phase 3: BC-STNF 구현 (`body_encoder.py`, `st_gcn.py`, `realnvp.py`, `bc_stnf.py`)
-- [ ] Phase 4: 학습 + Ablation 5종
-- [ ] Phase 5: LLM 통합 + FastAPI
+- [ ] Phase 4: 평가 스크립트 (`src/evaluation/metrics.py`, `ablation.py`, `llm_feedback.py`)
+- [ ] Phase 5: 데이터 수집 완료 후 실제 학습 실행
+- [ ] Phase 6: Ablation 5종 + 최종 평가
 
 ### 주요 기술 결정 및 트러블슈팅
 
@@ -289,6 +309,8 @@ log_det = sum(s)            # log-determinant
 | vfolder/코드 경로 분리 | Backend.AI ephemeral 컨테이너 | `BODYFIT_DATA` 환경변수로 데이터 경로 분리 |
 | `crawl.py` TypeError: 'int' object is not subscriptable | `--get-id/title/duration`과 `--print` 동시 사용 시 yt-dlp가 duration을 별도 숫자 라인으로 출력 → `json.loads("120")` = int → `item["id"]` 실패 | `--get-*` 플래그 전부 제거, `--print`만 사용 (commit f82c5a8) |
 | `crawl.py` 재실행 시 max_videos 초과 | `downloaded = 0`으로 시작해 기존 파일을 카운트에 미포함 → 재검색 결과가 안 겹치면 기존+300개 다운 | `downloaded = len(existing)`으로 초기화 |
+| BC-STNF OOM (맥북 스왑 38GB) | ST-GCN 64채널 출력 flatten → D=135,168 → Linear weight 18GB | ST-GCN 채널 3→8→4로 축소, D=8,448로 tractable |
+| BC-STNF view 오류 | block1 통과 후 non-contiguous 텐서에 `.view()` 실패 | `.reshape()`으로 교체 |
 
 ### 참고 문헌
 
