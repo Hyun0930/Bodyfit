@@ -75,7 +75,6 @@ def _search_video_ids(query: str, max_results: int) -> list[dict]:
         "yt-dlp",
         f"ytsearch{max_results}:{query}",
         "--match-filter", "duration < 1800",  # 30분 이상 제외
-        "--get-id", "--get-title", "--get-duration",
         "--no-warnings", "--quiet",
         "--print", '{"id":"%(id)s","title":"%(title)s","duration":%(duration)s}',
     ]
