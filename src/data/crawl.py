@@ -95,7 +95,11 @@ def _search_video_ids(query: str, max_results: int, cookies: str | None = None) 
 
 
 def download_video(video_id: str, out_dir: Path, cookies: str | None = None) -> bool:
-    """영상 1개 다운로드. 성공 시 True."""
+    """영상 1개 다운로드. 성공 시 True.
+
+    android client는 cookies와 함께 사용 불가 — 다운로드 시 cookies 미사용.
+    검색(search)에서만 cookies 사용.
+    """
     out_tmpl = str(out_dir / "%(id)s.%(ext)s")
     cmd = [
         "yt-dlp",
@@ -107,8 +111,7 @@ def download_video(video_id: str, out_dir: Path, cookies: str | None = None) -> 
         "--no-warnings", "--quiet",
         "--no-playlist",
     ]
-    if cookies:
-        cmd += ["--cookies", cookies]
+    # android client는 cookies 미지원 → cookies 인자 무시
     result = subprocess.run(cmd, capture_output=True, text=True)
     return result.returncode == 0
 
