@@ -101,6 +101,7 @@ def download_video(video_id: str, out_dir: Path, cookies: str | None = None) -> 
         "yt-dlp",
         f"https://www.youtube.com/watch?v={video_id}",
         "-f", FORMAT,
+        "--extractor-args", "youtube:player_client=android",
         "--merge-output-format", "mp4",
         "-o", out_tmpl,
         "--no-warnings", "--quiet",
