@@ -50,7 +50,7 @@ QUERIES: dict[str, list[str]] = {
 }
 
 # yt-dlp 포맷: 720p 이상 mp4 우선, 없으면 최선
-FORMAT = "bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height>=720]+bestaudio/best[height>=720]/best"
+FORMAT = "bestvideo[height>=720]+bestaudio/best[height>=720]/bestvideo+bestaudio/best"
 
 
 def _load_existing(csv_path: Path) -> set[str]:
