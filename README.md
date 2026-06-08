@@ -81,6 +81,11 @@ cmd = ["yt-dlp", ..., "--get-id", "--get-title", "--get-duration", "--print", '{
 cmd = ["yt-dlp", ..., "--print", '{"id":"%(id)s","title":"%(title)s","duration":%(duration)s}']
 ```
 
+### body_feature.py 이상치 — bench 1,140개, deadlift 8개, ohp 11개
+
+카메라 정면/머리위 각도 영상에서 다리 2D 투영 거리 ≈ 0 → `b[0]`, `b[6]` 수백만으로 폭발.
+학습 전 `np.any(np.abs(body) > 100)` 필터링으로 제거. 상세 내용은 CLAUDE.md 참고.
+
 ---
 
 ## References

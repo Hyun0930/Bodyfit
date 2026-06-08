@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
@@ -10,6 +11,14 @@ from src.data import BodyFitDataset
 from src.models.cvae import CVAE
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]
+
+
+def compute_body_stats(subset) -> tuple[torch.Tensor, torch.Tensor]:
+    """train set body 벡터의 mean/std 계산 (정규화 파라미터)."""
+    bodies = np.stack([subset[i][1].numpy() for i in range(len(subset))])
+    mean = torch.tensor(bodies.mean(axis=0), dtype=torch.float32)
+    std  = torch.tensor(bodies.std(axis=0).clip(min=1e-6), dtype=torch.float32)
+    return mean, std
 
 
 def get_device(device_arg: str) -> torch.device:
@@ -22,11 +31,12 @@ def get_device(device_arg: str) -> torch.device:
     return torch.device("cpu")
 
 
-def train_epoch(model, loader, optimizer, device):
+def train_epoch(model, loader, optimizer, device, body_mean, body_std):
     model.train()
     total, recon_sum, kl_sum = 0.0, 0.0, 0.0
     for pose, body in loader:
         pose, body = pose.to(device), body.to(device)
+        body = (body - body_mean) / body_std
         pose_recon, mu, log_var = model(pose, body)
         loss, recon, kl = CVAE.compute_loss(pose, pose_recon, mu, log_var, model.beta)
         optimizer.zero_grad()
@@ -41,11 +51,12 @@ def train_epoch(model, loader, optimizer, device):
 
 
 @torch.no_grad()
-def val_epoch(model, loader, device):
+def val_epoch(model, loader, device, body_mean, body_std):
     model.eval()
     total, recon_sum, kl_sum = 0.0, 0.0, 0.0
     for pose, body in loader:
         pose, body = pose.to(device), body.to(device)
+        body = (body - body_mean) / body_std
         pose_recon, mu, log_var = model(pose, body)
         loss, recon, kl = CVAE.compute_loss(pose, pose_recon, mu, log_var, model.beta)
         total += loss.item()
@@ -89,6 +100,10 @@ def main():
     val_loader = DataLoader(val_set, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
     print(f"Train: {len(train_set)} | Val: {len(val_set)}")
 
+    body_mean, body_std = compute_body_stats(train_set)
+    body_mean, body_std = body_mean.to(device), body_std.to(device)
+    print(f"Body stats — mean: {body_mean.cpu().numpy().round(3)}")
+
     model = CVAE(latent_dim=args.latent_dim, beta=args.beta).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
@@ -100,8 +115,8 @@ def main():
     train_losses, val_losses = [], []
 
     for epoch in range(1, args.epochs + 1):
-        tr_loss, tr_recon, tr_kl = train_epoch(model, train_loader, optimizer, device)
-        vl_loss, vl_recon, vl_kl = val_epoch(model, val_loader, device)
+        tr_loss, tr_recon, tr_kl = train_epoch(model, train_loader, optimizer, device, body_mean, body_std)
+        vl_loss, vl_recon, vl_kl = val_epoch(model, val_loader, device, body_mean, body_std)
         scheduler.step()
 
         train_losses.append(tr_loss)
@@ -122,6 +137,8 @@ def main():
                     "optimizer_state": optimizer.state_dict(),
                     "val_loss": vl_loss,
                     "config": vars(args),
+                    "body_mean": body_mean.cpu(),
+                    "body_std": body_std.cpu(),
                 },
                 ckpt_dir / "best.pt",
             )

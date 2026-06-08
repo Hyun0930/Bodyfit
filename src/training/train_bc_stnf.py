@@ -23,6 +23,14 @@ def get_device(device_arg: str) -> torch.device:
     return torch.device("cpu")
 
 
+def compute_body_stats(subset) -> tuple[torch.Tensor, torch.Tensor]:
+    """train set body 벡터의 mean/std 계산 (정규화 파라미터)."""
+    bodies = np.stack([subset[i][1].numpy() for i in range(len(subset))])
+    mean = torch.tensor(bodies.mean(axis=0), dtype=torch.float32)
+    std  = torch.tensor(bodies.std(axis=0).clip(min=1e-6), dtype=torch.float32)
+    return mean, std
+
+
 def compute_cluster_weights(dataset, n_clusters: int = 10) -> torch.Tensor:
     """body 벡터 K-means 클러스터링 → 소수 클러스터 가중치 상향."""
     bodies = np.stack([dataset[i][1].numpy() for i in range(len(dataset))])
@@ -35,11 +43,12 @@ def compute_cluster_weights(dataset, n_clusters: int = 10) -> torch.Tensor:
     return torch.tensor(sample_w, dtype=torch.float32)
 
 
-def train_epoch(model, loader, optimizer, device):
+def train_epoch(model, loader, optimizer, device, body_mean, body_std):
     model.train()
     total = 0.0
     for pose, body in loader:
         pose, body = pose.to(device), body.to(device)
+        body = (body - body_mean) / body_std
         loss = model(pose, body).mean()
         optimizer.zero_grad()
         loss.backward()
@@ -50,11 +59,12 @@ def train_epoch(model, loader, optimizer, device):
 
 
 @torch.no_grad()
-def val_epoch(model, loader, device):
+def val_epoch(model, loader, device, body_mean, body_std):
     model.eval()
     total = 0.0
     for pose, body in loader:
         pose, body = pose.to(device), body.to(device)
+        body = (body - body_mean) / body_std
         total += model(pose, body).mean().item()
     return total / len(loader)
 
@@ -91,6 +101,10 @@ def main():
     train_set, val_set = dataset.split(train_ratio=0.9, seed=42)
     print(f"Train: {len(train_set)} | Val: {len(val_set)}")
 
+    body_mean, body_std = compute_body_stats(train_set)
+    body_mean, body_std = body_mean.to(device), body_std.to(device)
+    print(f"Body stats — mean: {body_mean.cpu().numpy().round(3)}")
+
     weights = compute_cluster_weights(train_set, n_clusters=args.n_clusters)
     sampler = WeightedRandomSampler(weights, num_samples=len(train_set), replacement=True)
 
@@ -108,8 +122,8 @@ def main():
     train_losses, val_losses = [], []
 
     for epoch in range(1, args.epochs + 1):
-        tr = train_epoch(model, train_loader, optimizer, device)
-        vl = val_epoch(model, val_loader, device)
+        tr = train_epoch(model, train_loader, optimizer, device, body_mean, body_std)
+        vl = val_epoch(model, val_loader, device, body_mean, body_std)
         scheduler.step()
 
         train_losses.append(tr)
@@ -125,6 +139,8 @@ def main():
                     "optimizer_state": optimizer.state_dict(),
                     "val_nll": vl,
                     "config": vars(args),
+                    "body_mean": body_mean.cpu(),
+                    "body_std": body_std.cpu(),
                 },
                 ckpt_dir / "best.pt",
             )

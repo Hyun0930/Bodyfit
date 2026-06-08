@@ -37,6 +37,29 @@ class BodyFitDataset(Dataset):
         if not self.samples:
             raise FileNotFoundError(f"No .npz files found under {base} for {targets}")
 
+        # body feature 이상치 제거 (캐시 활용)
+        cache_path = Path(base) / "valid_samples_cache.txt"
+        self.samples = self._filter_outliers(self.samples, cache_path)
+
+    @staticmethod
+    def _filter_outliers(samples: list[Path], cache_path: Path) -> list[Path]:
+        # 절대경로로 통일
+        samples = [p.resolve() for p in samples]
+        cache_path = cache_path.resolve()
+
+        if cache_path.exists():
+            valid = set(cache_path.read_text().splitlines())
+            result = [p for p in samples if str(p) in valid]
+            print(f"[BodyFitDataset] loaded {len(result)} valid samples from cache")
+            return result
+
+        print(f"[BodyFitDataset] building outlier cache ({len(samples)} files)...")
+        valid = [p for p in samples if not np.any(np.abs(np.load(p)["body"]) > 100)]
+        cache_path.write_text("\n".join(str(p) for p in valid))
+        filtered = len(samples) - len(valid)
+        print(f"[BodyFitDataset] filtered {filtered} outliers, cached {len(valid)} valid samples")
+        return valid
+
     def __len__(self) -> int:
         return len(self.samples)
 
