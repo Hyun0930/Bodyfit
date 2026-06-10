@@ -78,29 +78,28 @@ def resample(rep: np.ndarray, n: int = TARGET_FRAMES) -> np.ndarray:
     return out
 
 
-def segment_reps(kps_raw: np.ndarray, exercise: str) -> list[np.ndarray]:
+def segment_reps(
+    kps_raw: np.ndarray, exercise: str
+) -> list[tuple[np.ndarray, int, int]]:
     """
     kps_raw: (T, 33, 4) 원본 (정규화 전)
-    returns: list of (T_rep, 33, 3) 정규화 완료된 rep 조각들
+    returns: list of (rep_array (T_rep,33,3), start_frame, end_frame)
     """
     a, v, b = ANGLE_JOINTS[exercise]
     angles = compute_angle(kps_raw, a, v, b)  # (T,)
 
-    # 관절 굴곡 최솟값(가장 구부러진 지점)을 rep 경계로 사용
-    # 스쿼트는 무릎 각도 최솟값, 벤치는 팔꿈치 최솟값 등
     peaks, _ = find_peaks(-angles, prominence=10, distance=15)
 
     if len(peaks) < 2:
         return []
 
-    # rep 경계: 연속된 peak 사이를 1 rep으로 정의
     kps_norm = normalize(kps_raw)  # (T, 33, 3)
     reps = []
     for i in range(len(peaks) - 1):
         start, end = peaks[i], peaks[i + 1]
         if end - start < MIN_REP_FRAMES:
             continue
-        reps.append(kps_norm[start:end])
+        reps.append((kps_norm[start:end], int(start), int(end)))
 
     return reps
 
@@ -116,7 +115,7 @@ def process_file(npy_path: Path, exercise: str, out_dir: Path) -> int:
 
     video_id = npy_path.stem
     saved = 0
-    for i, rep in enumerate(reps):
+    for i, (rep, start_frame, end_frame) in enumerate(reps):
         out_path = out_dir / f"{video_id}_rep{i:02d}.npz"
         if out_path.exists():  # 이미 처리된 rep 스킵
             saved += 1
@@ -127,6 +126,8 @@ def process_file(npy_path: Path, exercise: str, out_dir: Path) -> int:
             "rep_idx": i,
             "exercise": exercise,
             "n_original_frames": int(rep.shape[0]),
+            "rep_start_frame": start_frame,
+            "rep_end_frame": end_frame,
         }
         np.savez_compressed(out_path, pose=pose, body=body, meta=json.dumps(meta))
         saved += 1
@@ -134,9 +135,9 @@ def process_file(npy_path: Path, exercise: str, out_dir: Path) -> int:
     return saved
 
 
-def process_exercise(exercise: str) -> None:
-    kp_dir = KEYPOINTS_DIR / exercise
-    out_dir = PROCESSED_DIR / exercise
+def process_exercise(exercise: str, kp_root: Path | None = None, out_root: Path | None = None) -> None:
+    kp_dir = (kp_root or KEYPOINTS_DIR) / exercise
+    out_dir = (out_root or PROCESSED_DIR) / exercise
     out_dir.mkdir(parents=True, exist_ok=True)
 
     npy_files = sorted(kp_dir.glob("*.npy"))
@@ -156,11 +157,16 @@ def process_exercise(exercise: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--exercise", choices=EXERCISES + ["all"], default="all")
+    parser.add_argument("--input_dir", type=str, default=None, help="keypoints 입력 루트 디렉토리 override")
+    parser.add_argument("--output_dir", type=str, default=None, help="processed 출력 루트 디렉토리 override")
     args = parser.parse_args()
+
+    kp_root = Path(args.input_dir) if args.input_dir else None
+    out_root = Path(args.output_dir) if args.output_dir else None
 
     targets = EXERCISES if args.exercise == "all" else [args.exercise]
     for ex in targets:
-        process_exercise(ex)
+        process_exercise(ex, kp_root=kp_root, out_root=out_root)
 
 
 if __name__ == "__main__":

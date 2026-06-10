@@ -49,6 +49,30 @@ QUERIES: dict[str, list[str]] = {
     ],
 }
 
+TIER3_QUERIES: dict[str, list[str]] = {
+    "squat": [
+        "squat form check beginner",
+        "squat bad form correction",
+        "squat knee cave fix",
+        "squat depth problem fix",
+    ],
+    "bench": [
+        "bench press form check beginner",
+        "bench press bad form correction",
+        "bench press mistake fix",
+    ],
+    "deadlift": [
+        "deadlift form check beginner",
+        "deadlift back rounding fix",
+        "deadlift bad form correction",
+    ],
+    "ohp": [
+        "overhead press form check beginner",
+        "ohp bad form correction",
+        "shoulder press mistake fix",
+    ],
+}
+
 # yt-dlp 포맷: 720p 이상 mp4 우선, 없으면 최선
 FORMAT = "bestvideo[height>=720]+bestaudio/best[height>=720]/bestvideo+bestaudio/best"
 
@@ -116,19 +140,29 @@ def download_video(video_id: str, out_dir: Path, cookies: str | None = None) -> 
     return result.returncode == 0
 
 
-def crawl_exercise(exercise: str, max_videos: int, cookies: str | None = None) -> None:
-    out_dir = RAW_DIR / exercise
+def crawl_exercise(
+    exercise: str,
+    max_videos: int,
+    cookies: str | None = None,
+    tier3: bool = False,
+    out_dir: Path | None = None,
+) -> None:
+    if out_dir is None:
+        out_dir = RAW_DIR / exercise
+    else:
+        out_dir = out_dir / exercise
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / "metadata.csv"
 
+    queries = TIER3_QUERIES[exercise] if tier3 else QUERIES[exercise]
     existing = _load_existing(csv_path)
     downloaded = len(existing)
 
-    for query in QUERIES[exercise]:
+    for query in queries:
         if downloaded >= max_videos:
             break
 
-        per_query = max(10, (max_videos - downloaded) // max(1, len(QUERIES[exercise])))
+        per_query = max(10, (max_videos - downloaded) // max(1, len(queries)))
         items = _search_video_ids(query, per_query * 2, cookies=cookies)
 
         for item in items:
@@ -162,11 +196,14 @@ def main() -> None:
     parser.add_argument("--exercise", choices=EXERCISES + ["all"], default="all")
     parser.add_argument("--max", type=int, default=300, help="종목당 최대 영상 수")
     parser.add_argument("--cookies", type=str, default=None, help="쿠키 파일 경로 (Netscape 형식)")
+    parser.add_argument("--tier3", action="store_true", help="Tier 3 bad-form 쿼리 사용 + mp4 보존")
+    parser.add_argument("--out_dir", type=str, default=None, help="출력 디렉토리 override")
     args = parser.parse_args()
 
+    out_dir = Path(args.out_dir) if args.out_dir else None
     targets = EXERCISES if args.exercise == "all" else [args.exercise]
     for ex in targets:
-        crawl_exercise(ex, args.max, cookies=args.cookies)
+        crawl_exercise(ex, args.max, cookies=args.cookies, tier3=args.tier3, out_dir=out_dir)
 
 
 if __name__ == "__main__":
