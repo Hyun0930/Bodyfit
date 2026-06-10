@@ -22,7 +22,7 @@ import numpy as np
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]
 N_FRAMES = 8  # rep당 추출할 프레임 수
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-sonnet-4-6"
 
 PROMPT_TEMPLATE = """당신은 파워리프팅 전문 코치입니다.
 아래 이미지들은 {exercise} 동작 1회(rep)를 시간 순서대로 캡처한 {n}장의 프레임입니다.
