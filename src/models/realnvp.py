@@ -32,7 +32,7 @@ class CouplingLayer(nn.Module):
 
         st = self.net(torch.cat([x_a, c], dim=-1))
         s, t = st[:, :half], st[:, half:]
-        s = torch.tanh(s) * 0.3
+        s = torch.tanh(s) * 2.0
 
         x_b_out = x_b * s.exp() + t
         log_det = s.sum(dim=-1)
@@ -53,7 +53,7 @@ class CouplingLayer(nn.Module):
 
         st = self.net(torch.cat([y_a, c], dim=-1))
         s, t = st[:, :half], st[:, half:]
-        s = torch.tanh(s) * 0.3
+        s = torch.tanh(s) * 2.0
 
         x_b = (y_b - t) * (-s).exp()
 

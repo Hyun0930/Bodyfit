@@ -7,14 +7,15 @@ from src.models.st_gcn import STGCN
 from src.models.realnvp import ConditionalRealNVP
 
 _PRIOR = Normal(0, 1)
-# ST-GCN 출력 (B,64,33,4) flatten → Flow 입력 차원
-FLOW_DIM = 64 * 33 * 4  # 8,448
+# ST-GCN 출력 (B,64,33,4) → 시간축 mean pooling → (B,33,4) → flatten
+FLOW_DIM = 33 * 4  # 132
 
 
 class BCSTNF(nn.Module):
     """Body-Conditioned Spatio-Temporal Normalizing Flow
 
     A(x) = -log P(pose | body)
+    ST-GCN 출력을 시간축 mean pooling 후 flow 적용 (D=132)
     """
 
     def __init__(self, n_coupling: int = 6):
@@ -34,7 +35,8 @@ class BCSTNF(nn.Module):
         """
         c = self.body_enc(body)                                   # (B, 16)
         feat = self.stgcn(pose, c)                                # (B, 64, 33, 4)
-        z, log_det = self.flow(feat.flatten(1), c)                # z: (B,8448), log_det: (B,)
+        feat = feat.mean(dim=1)                                   # (B, 33, 4) 시간축 mean pooling
+        z, log_det = self.flow(feat.flatten(1), c)                # z: (B,132), log_det: (B,)
         log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det       # (B,)
         return -log_prob
 
