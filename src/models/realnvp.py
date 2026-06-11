@@ -2,18 +2,51 @@ import torch
 import torch.nn as nn
 
 
+class ActNorm(nn.Module):
+    """Glow-style activation normalization.
+
+    첫 배치에서 data-dependent 초기화 → 입력을 N(0,1)로 정규화.
+    이후 학습 가능한 affine 변환으로 동작.
+    """
+
+    def __init__(self, dim: int):
+        super().__init__()
+        self.bias = nn.Parameter(torch.zeros(dim))
+        self.log_scale = nn.Parameter(torch.zeros(dim))
+        self.register_buffer("initialized", torch.zeros(1, dtype=torch.bool))
+
+    def _initialize(self, x: torch.Tensor):
+        with torch.no_grad():
+            self.bias.data.copy_(-x.mean(dim=0))
+            self.log_scale.data.copy_(-x.std(dim=0).clamp(min=1e-6).log())
+        self.initialized.fill_(True)
+
+    def forward(self, x: torch.Tensor, c: torch.Tensor = None):
+        if not self.initialized:
+            self._initialize(x)
+        y = (x + self.bias) * self.log_scale.exp()
+        log_det = self.log_scale.sum().expand(x.shape[0])
+        return y, log_det
+
+    def inverse(self, y: torch.Tensor, c: torch.Tensor = None) -> torch.Tensor:
+        return y * (-self.log_scale).exp() - self.bias
+
+
 class CouplingLayer(nn.Module):
-    """Conditional Additive Coupling Layer (log_det=0 → trivial solution 원천 차단)."""
+    """Conditional Affine Coupling Layer (zero-init → identity 출발)."""
 
     def __init__(self, dim: int, c_dim: int = 16, reverse: bool = False):
         super().__init__()
         self.reverse = reverse
         half = dim // 2
         self.net = nn.Sequential(
-            nn.Linear(half + c_dim, half * 2),
+            nn.Linear(half + c_dim, half),
             nn.ReLU(),
-            nn.Linear(half * 2, half),  # → t only
+            nn.Linear(half, half * 2),  # → s, t
         )
+        # 마지막 레이어 0 초기화 → 초기 s=0, t=0 (identity mapping)
+        nn.init.zeros_(self.net[-1].weight)
+        nn.init.zeros_(self.net[-1].bias)
 
     def forward(self, x: torch.Tensor, c: torch.Tensor):
         """
@@ -22,7 +55,7 @@ class CouplingLayer(nn.Module):
             c: (B, c_dim)
         Returns:
             y: (B, D)
-            log_det: (B,)  — always 0 for additive coupling
+            log_det: (B,)
         """
         half = x.shape[1] // 2
         if not self.reverse:
@@ -30,9 +63,13 @@ class CouplingLayer(nn.Module):
         else:
             x_b, x_a = x[:, :half], x[:, half:]
 
-        t = self.net(torch.cat([x_a, c], dim=-1))
-        x_b_out = x_b + t
-        log_det = torch.zeros(x.shape[0], device=x.device)
+        st = self.net(torch.cat([x_a, c], dim=-1))
+        s, t = st[:, :half], st[:, half:]
+        s = torch.tanh(s) * 2.0
+        self._last_s_sqsum = s.pow(2).sum(dim=-1)  # L2 reg 계산용
+
+        x_b_out = x_b * s.exp() + t
+        log_det = s.sum(dim=-1)
 
         if not self.reverse:
             y = torch.cat([x_a, x_b_out], dim=-1)
@@ -48,8 +85,11 @@ class CouplingLayer(nn.Module):
         else:
             y_b, y_a = y[:, :half], y[:, half:]
 
-        t = self.net(torch.cat([y_a, c], dim=-1))
-        x_b = y_b - t
+        st = self.net(torch.cat([y_a, c], dim=-1))
+        s, t = st[:, :half], st[:, half:]
+        s = torch.tanh(s) * 2.0
+
+        x_b = (y_b - t) * (-s).exp()
 
         if not self.reverse:
             return torch.cat([y_a, x_b], dim=-1)
@@ -58,14 +98,15 @@ class CouplingLayer(nn.Module):
 
 
 class ConditionalRealNVP(nn.Module):
-    """Conditional RealNVP: n_coupling개 coupling layer."""
+    """Conditional RealNVP: ActNorm + Affine Coupling (Glow-style)."""
 
     def __init__(self, dim: int, c_dim: int = 16, n_coupling: int = 6):
         super().__init__()
-        self.layers = nn.ModuleList([
-            CouplingLayer(dim, c_dim, reverse=(i % 2 == 1))
-            for i in range(n_coupling)
-        ])
+        layers = []
+        for i in range(n_coupling):
+            layers.append(ActNorm(dim))
+            layers.append(CouplingLayer(dim, c_dim, reverse=(i % 2 == 1)))
+        self.layers = nn.ModuleList(layers)
 
     def forward(self, x: torch.Tensor, c: torch.Tensor):
         """
@@ -74,14 +115,18 @@ class ConditionalRealNVP(nn.Module):
             c: (B, c_dim)
         Returns:
             z: (B, D)
-            log_det: (B,)   — sum of all layer log-determinants
+            log_det: (B,)
+            s_sqsum: (B,)  — coupling layer s² 합계 (L2 reg용)
         """
         log_det = torch.zeros(x.shape[0], device=x.device)
+        s_sqsum = torch.zeros(x.shape[0], device=x.device)
         z = x
         for layer in self.layers:
             z, ld = layer(z, c)
             log_det += ld
-        return z, log_det
+            if isinstance(layer, CouplingLayer):
+                s_sqsum += layer._last_s_sqsum
+        return z, log_det, s_sqsum
 
     def inverse(self, z: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
         x = z

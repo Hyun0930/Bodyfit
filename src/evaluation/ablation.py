@@ -44,7 +44,7 @@ class NoCondBCSTNF(nn.Module):
         B = pose.shape[0]
         c = torch.zeros(B, 16, device=pose.device)  # 체형 조건화 없음
         feat = self.stgcn(pose, c).mean(dim=1)       # (B, 33, 4) temporal mean pooling
-        z, log_det = self.flow(feat.flatten(1), c)
+        z, log_det, _ = self.flow(feat.flatten(1), c)
         log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det
         return -log_prob
 
@@ -73,7 +73,7 @@ class MLPFeatureBCSTNF(nn.Module):
     def forward(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
         c = self.body_enc(body)
         feat = self.mlp(pose.flatten(1))
-        z, log_det = self.flow(feat, c)
+        z, log_det, _ = self.flow(feat, c)
         log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det
         return -log_prob
 
@@ -123,7 +123,7 @@ class ClusterCondBCSTNF(nn.Module):
     def forward(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
         c = self.body_enc(body)
         feat = self.stgcn(pose, c).mean(dim=1)       # (B, 33, 4) temporal mean pooling
-        z, log_det = self.flow(feat.flatten(1), c)
+        z, log_det, _ = self.flow(feat.flatten(1), c)
         log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det
         return -log_prob
 

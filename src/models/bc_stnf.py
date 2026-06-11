@@ -24,25 +24,32 @@ class BCSTNF(nn.Module):
         self.stgcn = STGCN()                                      # (B,64,33,3) → (B,64,33,4)
         self.flow = ConditionalRealNVP(FLOW_DIM, c_dim=16, n_coupling=n_coupling)
 
-    def forward(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
-        """NLL 계산 — 학습 손실 및 이상 점수.
+    def forward(self, pose: torch.Tensor, body: torch.Tensor, s_reg_lambda: float = 1e-2) -> torch.Tensor:
+        """NLL + L2 reg(s) 계산 — 학습 손실.
 
         Args:
             pose: (B, 64, 33, 3)
             body: (B, 7)
+            s_reg_lambda: coupling s² 에 대한 L2 계수 (mode collapse 방지, 계획서 명시)
         Returns:
-            anomaly_score: (B,)  — -log P(pose|body)
+            loss: (B,)  — NLL + λ·Σs²
         """
-        c = self.body_enc(body)                                   # (B, 16)
-        feat = self.stgcn(pose, c)                                # (B, 64, 33, 4)
-        feat = feat.mean(dim=1)                                   # (B, 33, 4) 시간축 mean pooling
-        z, log_det = self.flow(feat.flatten(1), c)                # z: (B,132), log_det: (B,)
-        log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det       # (B,)
-        return -log_prob
+        c = self.body_enc(body)                                          # (B, 16)
+        feat = self.stgcn(pose, c)                                       # (B, 64, 33, 4)
+        feat = feat.mean(dim=1)                                          # (B, 33, 4) 시간축 mean pooling
+        z, log_det, s_sqsum = self.flow(feat.flatten(1), c)              # z:(B,132), log_det:(B,), s_sqsum:(B,)
+        log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det              # (B,)
+        nll = -log_prob
+        return nll + s_reg_lambda * s_sqsum                              # L2 reg: s→0 방향 압력
 
     def anomaly_score(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
+        """추론 시 순수 NLL만 반환 (reg 없음)."""
         with torch.no_grad():
-            return self.forward(pose, body)
+            c = self.body_enc(body)
+            feat = self.stgcn(pose, c).mean(dim=1)
+            z, log_det, _ = self.flow(feat.flatten(1), c)
+            log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det
+            return -log_prob
 
     def joint_attribution(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
         """gradient norm w.r.t. pose → heatmap.
