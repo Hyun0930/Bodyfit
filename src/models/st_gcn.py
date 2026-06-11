@@ -108,7 +108,7 @@ class STGCN(nn.Module):
             pose: (B, 64, 33, 3)
             c:    (B, 16)
         Returns:
-            feat: (B, 64, 33, 64)
+            feat: (B, 64, 33, 4)
         """
         x = self.block1(pose, c)
         x = self.block2(x, c)

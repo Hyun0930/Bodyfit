@@ -92,62 +92,71 @@ def main():
     parser.add_argument("--n_coupling", type=int, default=6)
     parser.add_argument("--n_clusters", type=int, default=10)
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--per_exercise", action="store_true",
+                        help="Ablation 5용: 종목별 분리 모델 학습 (ckpt_dir/{ex}/best.pt 저장)")
     args = parser.parse_args()
 
     device = get_device(args.device)
     print(f"Device: {device}")
 
-    dataset = BodyFitDataset(exercises=args.exercise, root=Path(args.data_root))
-    train_set, val_set = dataset.split(train_ratio=0.9, seed=42)
-    print(f"Train: {len(train_set)} | Val: {len(val_set)}")
+    train_targets = args.exercise if args.per_exercise else [None]
 
-    body_mean, body_std = compute_body_stats(train_set)
-    body_mean, body_std = body_mean.to(device), body_std.to(device)
-    print(f"Body stats — mean: {body_mean.cpu().numpy().round(3)}")
+    for ex_filter in train_targets:
+        exercises = [ex_filter] if ex_filter else args.exercise
+        tag = ex_filter if ex_filter else "unified"
+        ckpt_dir = Path(args.ckpt_dir) / (f"bc_stnf_{ex_filter}" if ex_filter else "")
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-    weights = compute_cluster_weights(train_set, n_clusters=args.n_clusters)
-    sampler = WeightedRandomSampler(weights, num_samples=len(train_set), replacement=True)
+        print(f"\n=== 학습: {tag} ===")
+        dataset = BodyFitDataset(exercises=exercises, root=Path(args.data_root))
+        train_set, val_set = dataset.split(train_ratio=0.9, seed=42)
+        print(f"Train: {len(train_set)} | Val: {len(val_set)}")
 
-    train_loader = DataLoader(train_set, batch_size=args.batch_size, sampler=sampler, num_workers=2, pin_memory=True)
-    val_loader = DataLoader(val_set, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+        body_mean, body_std = compute_body_stats(train_set)
+        body_mean, body_std = body_mean.to(device), body_std.to(device)
+        print(f"Body stats — mean: {body_mean.cpu().numpy().round(3)}")
 
-    model = BCSTNF(n_coupling=args.n_coupling).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
+        weights = compute_cluster_weights(train_set, n_clusters=args.n_clusters)
+        sampler = WeightedRandomSampler(weights, num_samples=len(train_set), replacement=True)
 
-    ckpt_dir = Path(args.ckpt_dir)
-    ckpt_dir.mkdir(parents=True, exist_ok=True)
+        train_loader = DataLoader(train_set, batch_size=args.batch_size, sampler=sampler, num_workers=2, pin_memory=True)
+        val_loader = DataLoader(val_set, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
-    best_val = float("inf")
-    train_losses, val_losses = [], []
+        model = BCSTNF(n_coupling=args.n_coupling).to(device)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    for epoch in range(1, args.epochs + 1):
-        tr = train_epoch(model, train_loader, optimizer, device, body_mean, body_std)
-        vl = val_epoch(model, val_loader, device, body_mean, body_std)
-        scheduler.step()
+        best_val = float("inf")
+        train_losses, val_losses = [], []
 
-        train_losses.append(tr)
-        val_losses.append(vl)
-        print(f"Epoch {epoch:3d}/{args.epochs} | train NLL {tr:.4f} | val NLL {vl:.4f}")
+        for epoch in range(1, args.epochs + 1):
+            tr = train_epoch(model, train_loader, optimizer, device, body_mean, body_std)
+            vl = val_epoch(model, val_loader, device, body_mean, body_std)
+            scheduler.step()
 
-        if vl < best_val:
-            best_val = vl
-            torch.save(
-                {
-                    "epoch": epoch,
-                    "model_state": model.state_dict(),
-                    "optimizer_state": optimizer.state_dict(),
-                    "val_nll": vl,
-                    "config": vars(args),
-                    "body_mean": body_mean.cpu(),
-                    "body_std": body_std.cpu(),
-                },
-                ckpt_dir / "best.pt",
-            )
-            print(f"  → saved best checkpoint (val_nll={best_val:.4f})")
+            train_losses.append(tr)
+            val_losses.append(vl)
+            print(f"Epoch {epoch:3d}/{args.epochs} | train NLL {tr:.4f} | val NLL {vl:.4f}")
 
-    save_curve(train_losses, val_losses, Path("results/bc_stnf_train_curve.png"))
-    print("Done. Curve saved to results/bc_stnf_train_curve.png")
+            if vl < best_val:
+                best_val = vl
+                torch.save(
+                    {
+                        "epoch": epoch,
+                        "model_state": model.state_dict(),
+                        "optimizer_state": optimizer.state_dict(),
+                        "val_nll": vl,
+                        "config": vars(args),
+                        "body_mean": body_mean.cpu(),
+                        "body_std": body_std.cpu(),
+                    },
+                    ckpt_dir / "best.pt",
+                )
+                print(f"  → saved best checkpoint (val_nll={best_val:.4f})")
+
+        curve_path = Path(f"results/bc_stnf_{tag}_train_curve.png")
+        save_curve(train_losses, val_losses, curve_path)
+        print(f"Done. Curve saved to {curve_path}")
 
 
 if __name__ == "__main__":
