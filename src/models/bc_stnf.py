@@ -34,9 +34,7 @@ class BCSTNF(nn.Module):
         """
         c = self.body_enc(body)                                   # (B, 16)
         feat = self.stgcn(pose, c)                                # (B, 64, 33, 4)
-        x = feat.flatten(1)                                       # (B, 8448)
-        x = (x - x.mean(dim=-1, keepdim=True)) / (x.std(dim=-1, keepdim=True) + 1e-6)
-        z, log_det = self.flow(x, c)                              # z: (B,8448), log_det: (B,)
+        z, log_det = self.flow(feat.flatten(1), c)                # z: (B,8448), log_det: (B,)
         log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det       # (B,)
         return -log_prob
 
