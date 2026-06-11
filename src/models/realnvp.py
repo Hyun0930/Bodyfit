@@ -3,16 +3,16 @@ import torch.nn as nn
 
 
 class CouplingLayer(nn.Module):
-    """Conditional Affine Coupling Layer."""
+    """Conditional Additive Coupling Layer (log_det=0 → trivial solution 원천 차단)."""
 
     def __init__(self, dim: int, c_dim: int = 16, reverse: bool = False):
         super().__init__()
         self.reverse = reverse
         half = dim // 2
         self.net = nn.Sequential(
-            nn.Linear(half + c_dim, half),
+            nn.Linear(half + c_dim, half * 2),
             nn.ReLU(),
-            nn.Linear(half, half * 2),  # → s, t
+            nn.Linear(half * 2, half),  # → t only
         )
 
     def forward(self, x: torch.Tensor, c: torch.Tensor):
@@ -22,7 +22,7 @@ class CouplingLayer(nn.Module):
             c: (B, c_dim)
         Returns:
             y: (B, D)
-            log_det: (B,)
+            log_det: (B,)  — always 0 for additive coupling
         """
         half = x.shape[1] // 2
         if not self.reverse:
@@ -30,12 +30,9 @@ class CouplingLayer(nn.Module):
         else:
             x_b, x_a = x[:, :half], x[:, half:]
 
-        st = self.net(torch.cat([x_a, c], dim=-1))
-        s, t = st[:, :half], st[:, half:]
-        s = torch.tanh(s) * 2.0
-
-        x_b_out = x_b * s.exp() + t
-        log_det = s.sum(dim=-1)
+        t = self.net(torch.cat([x_a, c], dim=-1))
+        x_b_out = x_b + t
+        log_det = torch.zeros(x.shape[0], device=x.device)
 
         if not self.reverse:
             y = torch.cat([x_a, x_b_out], dim=-1)
@@ -51,11 +48,8 @@ class CouplingLayer(nn.Module):
         else:
             y_b, y_a = y[:, :half], y[:, half:]
 
-        st = self.net(torch.cat([y_a, c], dim=-1))
-        s, t = st[:, :half], st[:, half:]
-        s = torch.tanh(s) * 2.0
-
-        x_b = (y_b - t) * (-s).exp()
+        t = self.net(torch.cat([y_a, c], dim=-1))
+        x_b = y_b - t
 
         if not self.reverse:
             return torch.cat([y_a, x_b], dim=-1)
