@@ -3,27 +3,18 @@ import torch.nn as nn
 
 
 class ActNorm(nn.Module):
-    """Glow-style activation normalization.
+    """Channel-wise learnable affine (identity 초기화, gradient로 정규화 학습).
 
-    첫 배치에서 data-dependent 초기화 → 입력을 N(0,1)로 정규화.
-    이후 학습 가능한 affine 변환으로 동작.
+    data-dependent init 없이 bias=0, log_scale=0에서 출발 → NaN 위험 제거.
+    학습 중 gradient가 자연스럽게 피처 스케일을 정규화 방향으로 조정.
     """
 
     def __init__(self, dim: int):
         super().__init__()
         self.bias = nn.Parameter(torch.zeros(dim))
-        self.log_scale = nn.Parameter(torch.zeros(dim))
-        self.register_buffer("initialized", torch.zeros(1, dtype=torch.bool))
-
-    def _initialize(self, x: torch.Tensor):
-        with torch.no_grad():
-            self.bias.data.copy_(-x.mean(dim=0))
-            self.log_scale.data.copy_(-x.std(dim=0).clamp(min=1e-6).log())
-        self.initialized.fill_(True)
+        self.log_scale = nn.Parameter(torch.zeros(dim))  # exp(0)=1 → identity 출발
 
     def forward(self, x: torch.Tensor, c: torch.Tensor = None):
-        if not self.initialized:
-            self._initialize(x)
         y = (x + self.bias) * self.log_scale.exp()
         log_det = self.log_scale.sum().expand(x.shape[0])
         return y, log_det
