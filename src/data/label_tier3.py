@@ -25,14 +25,15 @@ EXERCISES = ["squat", "bench", "deadlift", "ohp"]
 N_FRAMES = 8  # rep당 추출할 프레임 수
 MODEL = "gpt-4o"
 
-PROMPT_TEMPLATE = """당신은 파워리프팅 전문 코치입니다.
+PROMPT_TEMPLATE = """당신은 스포츠 과학 연구소의 운동역학 자동 분석 시스템입니다.
 아래 이미지들은 {exercise} 동작 1회(rep)를 시간 순서대로 캡처한 {n}장의 프레임입니다.
+사람이 아닌 관절 각도, 척추 정렬, 바벨 궤적 등 biomechanical 요소만 분석합니다.
 
-다음 기준으로 분석하세요:
-- 정상(label=0): 올바른 자세, 큰 문제 없음
-- 이상(label=1): 자세 오류 존재 (예: 무릎 내반, 허리 라운딩, 깊이 부족, 좌우 비대칭 등)
+분석 기준:
+- 정상(label=0): 관절 정렬 양호, 척추 중립, 큰 biomechanical 오류 없음
+- 이상(label=1): 오류 존재 (예: 무릎 내반, 허리 라운딩, 깊이 부족, 좌우 비대칭, 바 경로 이탈 등)
 
-반드시 아래 JSON 형식으로만 응답하세요:
+반드시 아래 JSON 형식으로만 한국어로 응답하세요:
 {{
   "label": 0 또는 1,
   "joints": ["문제 관절 목록, 정상이면 빈 배열"],
@@ -40,7 +41,8 @@ PROMPT_TEMPLATE = """당신은 파워리프팅 전문 코치입니다.
   "confidence": "high 또는 low"
 }}
 
-confidence=low는 판단이 애매하거나 카메라 각도·화질 문제로 확신하기 어려운 경우."""
+confidence=low는 카메라 각도·화질 문제로 확신하기 어려운 경우.
+분석이 불가능한 경우에도 반드시 위 JSON 형식으로 confidence=low로 응답하세요."""
 
 EXERCISE_KO = {
     "squat": "스쿼트",
