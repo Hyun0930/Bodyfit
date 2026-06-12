@@ -16,13 +16,13 @@ import os
 import time
 from pathlib import Path
 
-import anthropic
 import cv2
 import numpy as np
+import openai
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]
 N_FRAMES = 8  # rep당 추출할 프레임 수
-MODEL = "claude-sonnet-4-6"
+MODEL = "gpt-4o"
 
 PROMPT_TEMPLATE = """당신은 파워리프팅 전문 코치입니다.
 아래 이미지들은 {exercise} 동작 1회(rep)를 시간 순서대로 캡처한 {n}장의 프레임입니다.
@@ -75,19 +75,16 @@ def frame_to_b64(frame: np.ndarray, max_size: int = 512) -> str:
 
 
 def label_rep(
-    client: anthropic.Anthropic,
+    client: openai.OpenAI,
     frames: list[np.ndarray],
     exercise: str,
 ) -> dict:
     content = []
     for frame in frames:
+        b64 = frame_to_b64(frame)
         content.append({
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/jpeg",
-                "data": frame_to_b64(frame),
-            },
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{b64}", "detail": "auto"},
         })
     content.append({
         "type": "text",
@@ -97,12 +94,12 @@ def label_rep(
         ),
     })
 
-    resp = client.messages.create(
+    resp = client.chat.completions.create(
         model=MODEL,
         max_tokens=256,
         messages=[{"role": "user", "content": content}],
     )
-    text = resp.content[0].text.strip()
+    text = resp.choices[0].message.content.strip()
 
     # JSON 파싱 (마크다운 코드블록 제거)
     if "```" in text:
@@ -121,11 +118,11 @@ def main() -> None:
     parser.add_argument("--out", default=None, help="출력 JSON 경로 (기본: data_root/labels_draft.json)")
     args = parser.parse_args()
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise SystemExit("ANTHROPIC_API_KEY 환경변수를 설정하세요.")
+        raise SystemExit("OPENAI_API_KEY 환경변수를 설정하세요.")
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = openai.OpenAI(api_key=api_key)
     data_root = Path(args.data_root)
     video_root = Path(args.video_root)
     out_path = Path(args.out) if args.out else data_root / "labels_draft.json"
