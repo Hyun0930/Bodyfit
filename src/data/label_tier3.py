@@ -16,6 +16,7 @@ import os
 import time
 from pathlib import Path
 
+import random
 import cv2
 import numpy as np
 import openai
@@ -116,6 +117,7 @@ def main() -> None:
     parser.add_argument("--video_root", default="data/raw/tier3", help="Tier 3 mp4 루트")
     parser.add_argument("--exercise", choices=EXERCISES + ["all"], default="all")
     parser.add_argument("--out", default=None, help="출력 JSON 경로 (기본: data_root/labels_draft.json)")
+    parser.add_argument("--pilot", type=int, default=None, help="종목별 랜덤 샘플 수 (미지정 시 전체)")
     args = parser.parse_args()
 
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -141,6 +143,10 @@ def main() -> None:
             continue
 
         npz_files = sorted(npz_dir.glob("*.npz"))
+        if args.pilot:
+            unprocessed = [f for f in npz_files if f"{exercise}/{f.stem}" not in draft]
+            sample = random.sample(unprocessed, min(args.pilot, len(unprocessed)))
+            npz_files = sorted(f for f in npz_files if f in sample or f"{exercise}/{f.stem}" in draft)
         print(f"[{exercise}] {len(npz_files)}개 rep 처리 시작")
 
         for npz_path in npz_files:
