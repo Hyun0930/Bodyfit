@@ -160,24 +160,36 @@ def _collect_scores(model: nn.Module, loader: DataLoader, device: str) -> np.nda
 def run_ablation(
     ckpt_dir: Path,
     data_root: Path,
+    tier3_root: Path | None = None,
+    labels_path: Path | None = None,
     device: str = "cpu",
     exercises: list[str] | None = None,
     batch_size: int = 32,
 ) -> dict:
     """5종 ablation 실행 → 결과 dict 반환 + results/ablation.json 저장.
 
+    threshold는 BodyFitDataset val set(정상만)으로 계산.
+    AUROC/PR-AUC/EER는 Tier3Dataset(정상+이상)으로 계산.
     checkpoint가 없는 항목은 'no_checkpoint' 로 표시.
     """
     from src.data import BodyFitDataset
+    from src.data.tier3_dataset import Tier3Dataset
 
     exercises = exercises or EXERCISES
     ckpt_dir = Path(ckpt_dir)
     results = {}
 
-    # 공통 데이터셋 로드 (전체 exercises 통합)
-    dataset = BodyFitDataset(exercises=exercises, root=data_root)
-    _, val_ds = dataset.split(train_ratio=0.9)
+    # threshold 계산용: BodyFitDataset val set (정상만)
+    train_ds = BodyFitDataset(exercises=exercises, root=data_root)
+    _, val_ds = train_ds.split(train_ratio=0.9)
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+
+    # 평가용: Tier3Dataset (정상+이상 라벨 포함)
+    t3_root = Path(tier3_root) if tier3_root else Path(data_root).parent / "test"
+    t3_labels = Path(labels_path) if labels_path else t3_root / "labels.json"
+    tier3_ds = Tier3Dataset(root=t3_root, labels_path=t3_labels)
+    tier3_loader = DataLoader(tier3_ds, batch_size=batch_size, shuffle=False)
+    print(f"Tier3 평가셋: {tier3_ds.label_counts()}")
 
     # ---- Ablation 1: 체형 조건화 유무 ----
     print("[Ablation 1] 체형 조건화 유무")
@@ -187,8 +199,9 @@ def run_ablation(
     nc_ok = _load_model(no_cond, ckpt_dir / "no_cond" / "best.pt", device)
     if bc_ok and nc_ok:
         thr = threshold_from_val(_collect_scores(bc_model, val_loader, device))
-        results["ablation1_with_cond"] = evaluate_model(bc_model, val_loader, device, thr)
-        results["ablation1_no_cond"] = evaluate_model(no_cond, val_loader, device, thr)
+        results["ablation1_with_cond"] = evaluate_model(bc_model, tier3_loader, device, thr)
+        nc_thr = threshold_from_val(_collect_scores(no_cond, val_loader, device))
+        results["ablation1_no_cond"] = evaluate_model(no_cond, tier3_loader, device, nc_thr)
     else:
         results["ablation1"] = "no_checkpoint"
         print("  → checkpoint 없음, skip")
@@ -199,9 +212,9 @@ def run_ablation(
     cvae_ok = _load_model(cvae, ckpt_dir / "cvae" / "best.pt", device)
     if bc_ok and cvae_ok:
         thr = threshold_from_val(_collect_scores(bc_model, val_loader, device))
-        results["ablation2_bc_stnf"] = evaluate_model(bc_model, val_loader, device, thr)
+        results["ablation2_bc_stnf"] = evaluate_model(bc_model, tier3_loader, device, thr)
         cvae_thr = threshold_from_val(_collect_scores(cvae, val_loader, device))
-        results["ablation2_cvae"] = evaluate_model(cvae, val_loader, device, cvae_thr)
+        results["ablation2_cvae"] = evaluate_model(cvae, tier3_loader, device, cvae_thr)
     else:
         results["ablation2"] = "no_checkpoint"
         print("  → checkpoint 없음, skip")
@@ -212,8 +225,9 @@ def run_ablation(
     mlp_ok = _load_model(mlp_model, ckpt_dir / "mlp_feat" / "best.pt", device)
     if bc_ok and mlp_ok:
         thr = threshold_from_val(_collect_scores(bc_model, val_loader, device))
-        results["ablation3_stgcn"] = evaluate_model(bc_model, val_loader, device, thr)
-        results["ablation3_mlp"] = evaluate_model(mlp_model, val_loader, device, thr)
+        results["ablation3_stgcn"] = evaluate_model(bc_model, tier3_loader, device, thr)
+        mlp_thr = threshold_from_val(_collect_scores(mlp_model, val_loader, device))
+        results["ablation3_mlp"] = evaluate_model(mlp_model, tier3_loader, device, mlp_thr)
     else:
         results["ablation3"] = "no_checkpoint"
         print("  → checkpoint 없음, skip")
@@ -224,8 +238,9 @@ def run_ablation(
     cl_ok = _load_model(cluster_model, ckpt_dir / "cluster_cond" / "best.pt", device)
     if bc_ok and cl_ok:
         thr = threshold_from_val(_collect_scores(bc_model, val_loader, device))
-        results["ablation4_continuous"] = evaluate_model(bc_model, val_loader, device, thr)
-        results["ablation4_cluster"] = evaluate_model(cluster_model, val_loader, device, thr)
+        results["ablation4_continuous"] = evaluate_model(bc_model, tier3_loader, device, thr)
+        cl_thr = threshold_from_val(_collect_scores(cluster_model, val_loader, device))
+        results["ablation4_cluster"] = evaluate_model(cluster_model, tier3_loader, device, cl_thr)
     else:
         results["ablation4"] = "no_checkpoint"
         print("  → checkpoint 없음, skip")
@@ -233,16 +248,20 @@ def run_ablation(
     # ---- Ablation 5: 종목별 분리 vs 통합 모델 ----
     print("[Ablation 5] 종목별 분리 vs 통합 모델")
     if bc_ok:
-        results["ablation5_unified"] = evaluate_model(bc_model, val_loader, device)
+        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device))
+        results["ablation5_unified"] = evaluate_model(bc_model, tier3_loader, device, thr)
         per_ex_metrics = {}
         for ex in exercises:
-            ex_ds = BodyFitDataset(exercises=[ex], root=data_root)
-            _, ex_val = ex_ds.split(train_ratio=0.9)
-            ex_loader = DataLoader(ex_val, batch_size=batch_size, shuffle=False)
+            ex_train = BodyFitDataset(exercises=[ex], root=data_root)
+            _, ex_val = ex_train.split(train_ratio=0.9)
+            ex_val_loader = DataLoader(ex_val, batch_size=batch_size, shuffle=False)
+            ex_tier3 = Tier3Dataset(root=t3_root, labels_path=t3_labels, exercises=[ex])
+            ex_tier3_loader = DataLoader(ex_tier3, batch_size=batch_size, shuffle=False)
             ex_model = BCSTNF()
             ex_ckpt = ckpt_dir / f"bc_stnf_{ex}" / "best.pt"
             if _load_model(ex_model, ex_ckpt, device):
-                per_ex_metrics[ex] = evaluate_model(ex_model, ex_loader, device)
+                ex_thr = threshold_from_val(_collect_scores(ex_model, ex_val_loader, device))
+                per_ex_metrics[ex] = evaluate_model(ex_model, ex_tier3_loader, device, ex_thr)
             else:
                 per_ex_metrics[ex] = "no_checkpoint"
         results["ablation5_per_exercise"] = per_ex_metrics
@@ -278,9 +297,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ckpt_dir", type=Path, default=Path("checkpoints"))
     parser.add_argument("--data_root", type=Path, default=None)
+    parser.add_argument("--tier3_root", type=Path, default=None)
+    parser.add_argument("--labels_path", type=Path, default=None)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--exercises", nargs="+", default=EXERCISES)
     args = parser.parse_args()
 
-    res = run_ablation(args.ckpt_dir, args.data_root, args.device, args.exercises)
+    res = run_ablation(
+        args.ckpt_dir, args.data_root,
+        tier3_root=args.tier3_root,
+        labels_path=args.labels_path,
+        device=args.device,
+        exercises=args.exercises,
+    )
     _print_table(res)
