@@ -149,11 +149,12 @@ class RawPoseFlow(nn.Module):
     def __init__(self, n_coupling: int = 6):
         super().__init__()
         self.body_enc = BodyEncoder()                                          # 7 → 16
-        self.flow = ConditionalRealNVP(RAW_FLOW_DIM, c_dim=16, n_coupling=n_coupling)
+        self.proj = nn.Linear(RAW_FLOW_DIM, 100)                              # 99 → 100 (짝수)
+        self.flow = ConditionalRealNVP(100, c_dim=16, n_coupling=n_coupling)
 
     def forward(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
         c = self.body_enc(body)
-        feat = pose.mean(dim=1).flatten(1)    # (B,64,33,3) → mean(t) → (B,33,3) → (B,99)
+        feat = self.proj(pose.mean(dim=1).flatten(1))  # (B,64,33,3) → (B,99) → (B,100)
         z, log_det, _ = self.flow(feat, c)
         log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det
         return -log_prob                       # s_reg 없음
