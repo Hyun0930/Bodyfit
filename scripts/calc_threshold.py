@@ -30,6 +30,15 @@ def main():
     model.load_state_dict(ckpt.get("model_state", ckpt), strict=False)
     model.eval()
 
+    body_mean = ckpt.get("body_mean")
+    body_std  = ckpt.get("body_std")
+    if body_mean is not None:
+        body_mean = body_mean.to(device)
+        body_std  = body_std.to(device)
+        print("body 정규화 적용")
+    else:
+        print("body_mean 없음 — 정규화 스킵")
+
     ds_full = BodyFitDataset(root=Path(args.data_root))
     _, ds = ds_full.split(train_ratio=0.9, seed=42)
     print(f"val set 크기: {len(ds)}")
@@ -39,6 +48,8 @@ def main():
         for i, (pose, body) in enumerate(ds):
             pose = pose.unsqueeze(0).to(device)
             body = body.unsqueeze(0).to(device)
+            if body_mean is not None:
+                body = (body - body_mean) / body_std
             s = model.anomaly_score(pose, body).item()
             scores.append(s)
             if (i + 1) % 1000 == 0:
