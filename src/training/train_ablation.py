@@ -20,10 +20,11 @@ from sklearn.cluster import KMeans
 from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from src.data import BodyFitDataset
-from src.evaluation.ablation import ClusterCondBCSTNF, MLPFeatureBCSTNF, NoCondBCSTNF, RawPoseFlow
+from src.evaluation.ablation import ClusterCondBCSTNF, MLPFeatureBCSTNF, NoBodyCVAE, NoCondBCSTNF, RawPoseFlow
+from src.models.cvae import CVAE
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]
-VARIANTS = ["no_cond", "mlp_feat", "cluster_cond", "raw_flow"]
+VARIANTS = ["no_cond", "mlp_feat", "cluster_cond", "raw_flow", "no_body_cvae"]
 
 
 def get_device(device_arg: str) -> torch.device:
@@ -54,13 +55,25 @@ def compute_cluster_weights(dataset, n_clusters: int = 10) -> torch.Tensor:
     return torch.tensor(sample_w, dtype=torch.float32)
 
 
+def compute_loss(model, pose, body):
+    """모델 종류에 관계없이 스칼라 loss 반환."""
+    out = model(pose, body)
+    if isinstance(out, tuple):
+        # CVAE 계열: (pose_recon, mu, log_var)
+        from src.models.cvae import CVAE
+        pose_recon, mu, log_var = out
+        loss, _, _ = CVAE.compute_loss(pose, pose_recon, mu, log_var)
+        return loss
+    return out.mean()
+
+
 def train_epoch(model, loader, optimizer, device, body_mean, body_std):
     model.train()
     total = 0.0
     for pose, body in loader:
         pose, body = pose.to(device), body.to(device)
         body = (body - body_mean) / body_std
-        loss = model(pose, body).mean()
+        loss = compute_loss(model, pose, body)
         optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -76,7 +89,7 @@ def val_epoch(model, loader, device, body_mean, body_std):
     for pose, body in loader:
         pose, body = pose.to(device), body.to(device)
         body = (body - body_mean) / body_std
-        total += model(pose, body).mean().item()
+        total += compute_loss(model, pose, body).item()
     return total / len(loader)
 
 
@@ -89,6 +102,8 @@ def build_model(variant: str) -> torch.nn.Module:
         return ClusterCondBCSTNF()
     elif variant == "raw_flow":
         return RawPoseFlow()
+    elif variant == "no_body_cvae":
+        return NoBodyCVAE()
     else:
         raise ValueError(f"Unknown variant: {variant}. Choose from {VARIANTS}")
 

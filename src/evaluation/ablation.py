@@ -135,6 +135,59 @@ class ClusterCondBCSTNF(nn.Module):
 
 
 # ---------------------------------------------------------------------------
+# Ablation 2-b: 체형 조건화 없는 CVAE (body 입력 제거)
+# ---------------------------------------------------------------------------
+
+class NoBodyCVAE(nn.Module):
+    """체형 조건화 제거한 CVAE — body 입력 없이 포즈만으로 학습.
+
+    기존 CVAE와 비교해 체형 조건화의 기여도를 측정.
+    """
+
+    def __init__(self, latent_dim: int = 128):
+        super().__init__()
+        self.latent_dim = latent_dim
+        from src.models.cvae import POSE_DIM
+        self.encoder = nn.Sequential(
+            nn.Linear(POSE_DIM, 1024), nn.ReLU(), nn.LayerNorm(1024),
+            nn.Linear(1024, 512), nn.ReLU(), nn.LayerNorm(512),
+            nn.Linear(512, latent_dim * 2),
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(latent_dim, 512), nn.ReLU(), nn.LayerNorm(512),
+            nn.Linear(512, 1024), nn.ReLU(), nn.LayerNorm(1024),
+            nn.Linear(1024, POSE_DIM),
+        )
+
+    def forward(self, pose: torch.Tensor, body: torch.Tensor):
+        B = pose.size(0)
+        pose_flat = pose.view(B, -1)
+        h = self.encoder(pose_flat)
+        mu, log_var = h.chunk(2, dim=-1)
+        std = torch.exp(0.5 * log_var)
+        z = mu + std * torch.randn_like(std) if self.training else mu
+        pose_recon = self.decoder(z).view(B, 64, 33, 3)
+        return pose_recon, mu, log_var
+
+    def anomaly_score(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            B = pose.size(0)
+            pose_flat = pose.view(B, -1)
+            h = self.encoder(pose_flat)
+            mu, _ = h.chunk(2, dim=-1)
+            pose_recon = self.decoder(mu)
+            return F.mse_loss(pose_recon, pose_flat, reduction='none').mean(dim=1)
+
+    def joint_attribution(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            B = pose.size(0)
+            pose_flat = pose.view(B, -1)
+            mu, _ = self.encoder(pose_flat).chunk(2, dim=-1)
+            pose_recon = self.decoder(mu).view(B, 64, 33, 3)
+            return (pose_recon - pose).pow(2).sum(dim=-1).sqrt()
+
+
+# ---------------------------------------------------------------------------
 # Raw Pose Flow — ST-GCN 제거 + s_reg=0
 # ---------------------------------------------------------------------------
 
