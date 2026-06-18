@@ -308,18 +308,24 @@ def run_ablation(
         results["ablation1"] = "no_checkpoint"
         print("  → checkpoint 없음, skip")
 
-    # ---- Ablation 2: CVAE vs BC-STNF ----
-    print("[Ablation 2] CVAE vs BC-STNF")
+    # ---- Ablation 2: CVAE(체형有) vs BC-STNF vs NoBodyCVAE(체형無) ----
+    print("[Ablation 2] CVAE vs BC-STNF vs NoBodyCVAE")
     cvae = CVAE()
     cvae_ok, cvae_mean, cvae_std = _load_model(cvae, ckpt_dir / "cvae" / "best.pt", device)
+    nobody_cvae = NoBodyCVAE()
+    nb_ok, nb_mean, nb_std = _load_model(nobody_cvae, ckpt_dir / "no_body_cvae" / "best.pt", device)
     if bc_ok and cvae_ok:
         thr = threshold_from_val(_collect_scores(bc_model, val_loader, device, bc_mean, bc_std))
         results["ablation2_bc_stnf"] = evaluate_model(bc_model, tier3_loader, device, thr, body_mean=bc_mean, body_std=bc_std)
         cvae_thr = threshold_from_val(_collect_scores(cvae, val_loader, device, cvae_mean, cvae_std))
-        results["ablation2_cvae"] = evaluate_model(cvae, tier3_loader, device, cvae_thr, body_mean=cvae_mean, body_std=cvae_std)
+        results["ablation2_cvae_with_body"] = evaluate_model(cvae, tier3_loader, device, cvae_thr, body_mean=cvae_mean, body_std=cvae_std)
     else:
         results["ablation2"] = "no_checkpoint"
         print("  → checkpoint 없음, skip")
+    if nb_ok:
+        nb_thr = threshold_from_val(_collect_scores(nobody_cvae, val_loader, device, nb_mean, nb_std))
+        results["ablation2_cvae_no_body"] = evaluate_model(nobody_cvae, tier3_loader, device, nb_thr, body_mean=nb_mean, body_std=nb_std)
+        print(f"  NoBodyCVAE 평가 완료")
 
     # ---- Ablation 3: ST-GCN vs MLP ----
     print("[Ablation 3] ST-GCN vs MLP")
