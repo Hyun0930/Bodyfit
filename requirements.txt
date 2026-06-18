@@ -19,7 +19,7 @@ matplotlib
 seaborn
 
 # --- LLM ---
-anthropic
+openai
 
 # --- API ---
 fastapi

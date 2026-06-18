@@ -1,0 +1,58 @@
+nohup: ignoring input
+Device: cuda
+
+=== 학습: unified ===
+[BodyFitDataset] loaded 90514 valid samples from cache
+Train: 81462 | Val: 9052
+Body stats — mean: [1.029 0.836 1.06  1.691 0.393 0.01  0.611]
+Epoch   1/30 | train NLL -513.3070 | val NLL -652.5285
+  → saved best checkpoint (val_nll=-652.5285)
+Epoch   2/30 | train NLL -745.8973 | val NLL -747.0625
+  → saved best checkpoint (val_nll=-747.0625)
+Epoch   3/30 | train NLL -853.6700 | val NLL -893.0690
+  → saved best checkpoint (val_nll=-893.0690)
+Epoch   4/30 | train NLL -929.8890 | val NLL -957.1008
+  → saved best checkpoint (val_nll=-957.1008)
+Epoch   5/30 | train NLL -991.5635 | val NLL -1009.0639
+  → saved best checkpoint (val_nll=-1009.0639)
+Epoch   6/30 | train NLL -1036.6924 | val NLL -1010.3674
+  → saved best checkpoint (val_nll=-1010.3674)
+Epoch   7/30 | train NLL -1070.7455 | val NLL -601.7019
+Epoch   8/30 | train NLL -1098.1816 | val NLL 175.0971
+Epoch   9/30 | train NLL -1126.8560 | val NLL 72.8054
+Epoch  10/30 | train NLL -1142.0681 | val NLL -1153.5022
+  → saved best checkpoint (val_nll=-1153.5022)
+Epoch  11/30 | train NLL -1162.1771 | val NLL -1190.4972
+  → saved best checkpoint (val_nll=-1190.4972)
+Epoch  12/30 | train NLL -1182.8554 | val NLL -1186.3532
+Epoch  13/30 | train NLL -1195.6028 | val NLL -1112.7829
+Epoch  14/30 | train NLL -1203.8959 | val NLL -1234.8367
+  → saved best checkpoint (val_nll=-1234.8367)
+Epoch  15/30 | train NLL -1219.7358 | val NLL -1217.2113
+Epoch  16/30 | train NLL -1230.6862 | val NLL -1158.1622
+Epoch  17/30 | train NLL -1250.6932 | val NLL -1261.2392
+  → saved best checkpoint (val_nll=-1261.2392)
+Epoch  18/30 | train NLL -1264.6473 | val NLL -1266.5372
+  → saved best checkpoint (val_nll=-1266.5372)
+Epoch  19/30 | train NLL -1282.6706 | val NLL -1219.5345
+Epoch  20/30 | train NLL -1290.2139 | val NLL -1283.8422
+  → saved best checkpoint (val_nll=-1283.8422)
+Epoch  21/30 | train NLL -1319.2580 | val NLL -1209.4904
+Epoch  22/30 | train NLL -1337.8464 | val NLL -1273.1120
+Epoch  23/30 | train NLL -1352.5504 | val NLL -1358.0047
+  → saved best checkpoint (val_nll=-1358.0047)
+Epoch  24/30 | train NLL -1374.8171 | val NLL -1369.8870
+  → saved best checkpoint (val_nll=-1369.8870)
+Epoch  25/30 | train NLL -1393.6734 | val NLL -1394.7588
+  → saved best checkpoint (val_nll=-1394.7588)
+Epoch  26/30 | train NLL -1410.9387 | val NLL -1413.1058
+  → saved best checkpoint (val_nll=-1413.1058)
+Epoch  27/30 | train NLL -1424.9668 | val NLL -1419.2482
+  → saved best checkpoint (val_nll=-1419.2482)
+Epoch  28/30 | train NLL -1435.0510 | val NLL -1437.7371
+  → saved best checkpoint (val_nll=-1437.7371)
+Epoch  29/30 | train NLL -1440.9971 | val NLL -1441.8545
+  → saved best checkpoint (val_nll=-1441.8545)
+Epoch  30/30 | train NLL -1443.6543 | val NLL -1443.7545
+  → saved best checkpoint (val_nll=-1443.7545)
+Done. Curve saved to results/bc_stnf_unified_train_curve.png

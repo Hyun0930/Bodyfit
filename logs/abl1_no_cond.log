@@ -1,0 +1,59 @@
+nohup: ignoring input
+Variant: no_cond | Device: cuda
+[BodyFitDataset] loaded 90514 valid samples from cache
+Train: 81462 | Val: 9052
+Epoch   1/30 | train NLL -463.4710 | val NLL -607.4177
+  → saved best (val_nll=-607.4177)
+Epoch   2/30 | train NLL -667.8796 | val NLL -732.4452
+  → saved best (val_nll=-732.4452)
+Epoch   3/30 | train NLL -774.7079 | val NLL -825.0294
+  → saved best (val_nll=-825.0294)
+Epoch   4/30 | train NLL -867.1122 | val NLL -894.7096
+  → saved best (val_nll=-894.7096)
+Epoch   5/30 | train NLL -922.5730 | val NLL -961.8104
+  → saved best (val_nll=-961.8104)
+Epoch   6/30 | train NLL -964.5242 | val NLL -970.3555
+  → saved best (val_nll=-970.3555)
+Epoch   7/30 | train NLL -996.8312 | val NLL -1015.0522
+  → saved best (val_nll=-1015.0522)
+Epoch   8/30 | train NLL -1015.7711 | val NLL -994.5122
+Epoch   9/30 | train NLL -1033.6517 | val NLL -1043.8618
+  → saved best (val_nll=-1043.8618)
+Epoch  10/30 | train NLL -1051.7693 | val NLL -1044.8247
+  → saved best (val_nll=-1044.8247)
+Epoch  11/30 | train NLL -1064.6627 | val NLL -1078.0162
+  → saved best (val_nll=-1078.0162)
+Epoch  12/30 | train NLL -1079.1940 | val NLL -1057.9489
+Epoch  13/30 | train NLL -1093.6275 | val NLL -1085.9237
+  → saved best (val_nll=-1085.9237)
+Epoch  14/30 | train NLL -1105.9750 | val NLL -1095.8163
+  → saved best (val_nll=-1095.8163)
+Epoch  15/30 | train NLL -1120.1048 | val NLL -1053.3004
+Epoch  16/30 | train NLL -1132.2212 | val NLL -1143.6212
+  → saved best (val_nll=-1143.6212)
+Epoch  17/30 | train NLL -1144.1374 | val NLL -1171.0731
+  → saved best (val_nll=-1171.0731)
+Epoch  18/30 | train NLL -1157.4151 | val NLL -1110.2615
+Epoch  19/30 | train NLL -1173.6927 | val NLL -1154.5298
+Epoch  20/30 | train NLL -1185.9237 | val NLL -1208.2494
+  → saved best (val_nll=-1208.2494)
+Epoch  21/30 | train NLL -1203.9288 | val NLL -1204.1728
+Epoch  22/30 | train NLL -1221.1816 | val NLL -1213.6735
+  → saved best (val_nll=-1213.6735)
+Epoch  23/30 | train NLL -1239.3649 | val NLL -1247.5843
+  → saved best (val_nll=-1247.5843)
+Epoch  24/30 | train NLL -1256.7639 | val NLL -1256.2014
+  → saved best (val_nll=-1256.2014)
+Epoch  25/30 | train NLL -1272.5892 | val NLL -1278.1649
+  → saved best (val_nll=-1278.1649)
+Epoch  26/30 | train NLL -1283.7844 | val NLL -1283.0332
+  → saved best (val_nll=-1283.0332)
+Epoch  27/30 | train NLL -1291.2649 | val NLL -1285.7897
+  → saved best (val_nll=-1285.7897)
+Epoch  28/30 | train NLL -1295.9056 | val NLL -1292.9258
+  → saved best (val_nll=-1292.9258)
+Epoch  29/30 | train NLL -1300.9949 | val NLL -1301.5782
+  → saved best (val_nll=-1301.5782)
+Epoch  30/30 | train NLL -1303.8539 | val NLL -1302.1374
+  → saved best (val_nll=-1302.1374)
+Done. Checkpoint: /home/work/body_fit/checkpoints/no_cond/best.pt

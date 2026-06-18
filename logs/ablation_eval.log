@@ -1,0 +1,29 @@
+nohup: ignoring input
+[BodyFitDataset] loaded 90514 valid samples from cache
+Tier3 평가셋: {'normal': 59, 'abnormal': 59}
+[Ablation 1] 체형 조건화 유무
+[Ablation 2] CVAE vs BC-STNF
+[Ablation 3] ST-GCN vs MLP
+[Ablation 4] Cluster vs Continuous body encoding
+[Ablation 5] 종목별 분리 vs 통합 모델
+[BodyFitDataset] loaded 11250 valid samples from cache
+[BodyFitDataset] loaded 38489 valid samples from cache
+[BodyFitDataset] loaded 28078 valid samples from cache
+[BodyFitDataset] loaded 12697 valid samples from cache
+
+결과 저장: results/ablation.json
+
+=== Ablation 결과 ===
+  ablation1_with_cond                 AUROC=0.5112  PR-AUC=0.4986  EER=0.4746
+  ablation1_no_cond                   AUROC=0.5866  PR-AUC=0.5524  EER=0.4576
+  ablation2_bc_stnf                   AUROC=0.5112  PR-AUC=0.4986  EER=0.4746
+  ablation2_cvae                      AUROC=0.4800  PR-AUC=0.4879  EER=0.4576
+  ablation3_stgcn                     AUROC=0.5112  PR-AUC=0.4986  EER=0.4746
+  ablation3_mlp                       AUROC=0.5513  PR-AUC=0.5670  EER=0.4746
+  ablation4_continuous                AUROC=0.5112  PR-AUC=0.4986  EER=0.4746
+  ablation4_cluster                   AUROC=0.5967  PR-AUC=0.6028  EER=0.4492
+  ablation5_unified                   AUROC=0.5112  PR-AUC=0.4986  EER=0.4746
+  ablation5_per_exercise/squat                     AUROC=0.3547
+  ablation5_per_exercise/bench                     AUROC=0.5536
+  ablation5_per_exercise/deadlift                  AUROC=0.4750
+  ablation5_per_exercise/ohp                       AUROC=0.4110
