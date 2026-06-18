@@ -1,0 +1,12 @@
+services:
+  bodyfit:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # 체크포인트 마운트 (이미지에 포함하지 않음)
+      - ./checkpoints:/app/checkpoints:ro
+    environment:
+      - BODYFIT_CKPT=/app/checkpoints/cvae/best.pt
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped

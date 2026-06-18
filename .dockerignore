@@ -1,0 +1,10 @@
+data/
+checkpoints/
+results/
+notebooks/
+__pycache__/
+*.pyc
+.git/
+*.log
+*.pdf
+www.youtube.com_cookies.txt
