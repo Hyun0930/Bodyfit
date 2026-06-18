@@ -20,10 +20,10 @@ from sklearn.cluster import KMeans
 from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from src.data import BodyFitDataset
-from src.evaluation.ablation import ClusterCondBCSTNF, MLPFeatureBCSTNF, NoCondBCSTNF
+from src.evaluation.ablation import ClusterCondBCSTNF, MLPFeatureBCSTNF, NoCondBCSTNF, RawPoseFlow
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]
-VARIANTS = ["no_cond", "mlp_feat", "cluster_cond"]
+VARIANTS = ["no_cond", "mlp_feat", "cluster_cond", "raw_flow"]
 
 
 def get_device(device_arg: str) -> torch.device:
@@ -87,13 +87,16 @@ def build_model(variant: str) -> torch.nn.Module:
         return MLPFeatureBCSTNF()
     elif variant == "cluster_cond":
         return ClusterCondBCSTNF()
+    elif variant == "raw_flow":
+        return RawPoseFlow()
     else:
         raise ValueError(f"Unknown variant: {variant}. Choose from {VARIANTS}")
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--variant", required=True, choices=VARIANTS)
+    parser.add_argument("--variant", required=True, choices=VARIANTS,
+                        help="no_cond | mlp_feat | cluster_cond | raw_flow")
     parser.add_argument("--data_root", default="data/processed")
     parser.add_argument("--ckpt_dir", default="checkpoints")
     parser.add_argument("--epochs", type=int, default=30)

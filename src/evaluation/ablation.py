@@ -23,6 +23,8 @@ _PRIOR = Normal(0, 1)
 
 EXERCISES = ["squat", "bench", "deadlift", "ohp"]
 
+RAW_FLOW_DIM = 33 * 3  # 99 — 시간 mean pooling 후 flatten
+
 
 # ---------------------------------------------------------------------------
 # Ablation 1: 체형 조건화 제거
@@ -126,6 +128,35 @@ class ClusterCondBCSTNF(nn.Module):
         z, log_det, _ = self.flow(feat.flatten(1), c)
         log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det
         return -log_prob
+
+    def anomaly_score(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            return self.forward(pose, body)
+
+
+# ---------------------------------------------------------------------------
+# Raw Pose Flow — ST-GCN 제거 + s_reg=0
+# ---------------------------------------------------------------------------
+
+class RawPoseFlow(nn.Module):
+    """ST-GCN 없이 raw pose → time mean → flatten → conditional RealNVP.
+
+    두 문제 동시 해결:
+      1) ST-GCN 공간 스무딩 제거 → 관절 변형 신호 직접 전달
+      2) s_reg_lambda=0 → coupling s가 0으로 수렴하는 collapse 방지
+    """
+
+    def __init__(self, n_coupling: int = 6):
+        super().__init__()
+        self.body_enc = BodyEncoder()                                          # 7 → 16
+        self.flow = ConditionalRealNVP(RAW_FLOW_DIM, c_dim=16, n_coupling=n_coupling)
+
+    def forward(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
+        c = self.body_enc(body)
+        feat = pose.mean(dim=1).flatten(1)    # (B,64,33,3) → mean(t) → (B,33,3) → (B,99)
+        z, log_det, _ = self.flow(feat, c)
+        log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det
+        return -log_prob                       # s_reg 없음
 
     def anomaly_score(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
