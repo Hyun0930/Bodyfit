@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BodyFit — 운동 자세 분석</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; min-height: 100vh; }
+
+    header { background: #1a1d27; padding: 20px 40px; border-bottom: 1px solid #2e3147; }
+    header h1 { font-size: 1.6rem; color: #7c6af7; }
+    header p  { font-size: 0.85rem; color: #888; margin-top: 4px; }
+
+    .container { max-width: 860px; margin: 40px auto; padding: 0 20px; }
+
+    .card {
+      background: #1a1d27; border-radius: 12px; padding: 28px;
+      border: 1px solid #2e3147; margin-bottom: 24px;
+    }
+    .card h2 { font-size: 1rem; color: #aaa; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .exercise-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    .exercise-btns button {
+      padding: 8px 18px; border-radius: 8px; border: 1px solid #3a3d52;
+      background: #22253a; color: #ccc; cursor: pointer; font-size: 0.9rem; transition: all 0.2s;
+    }
+    .exercise-btns button.active { background: #7c6af7; border-color: #7c6af7; color: #fff; }
+    .exercise-btns button:hover:not(.active) { background: #2e3147; }
+
+    .upload-area {
+      border: 2px dashed #3a3d52; border-radius: 10px; padding: 40px;
+      text-align: center; cursor: pointer; transition: border-color 0.2s;
+    }
+    .upload-area:hover, .upload-area.drag { border-color: #7c6af7; }
+    .upload-area input { display: none; }
+    .upload-area .icon { font-size: 2.5rem; margin-bottom: 10px; }
+    .upload-area p { color: #888; font-size: 0.9rem; }
+    .upload-area .filename { color: #7c6af7; margin-top: 8px; font-size: 0.85rem; }
+
+    .btn-analyze {
+      width: 100%; padding: 14px; border-radius: 10px; border: none;
+      background: #7c6af7; color: #fff; font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: background 0.2s; margin-top: 16px;
+    }
+    .btn-analyze:hover { background: #6a58e0; }
+    .btn-analyze:disabled { background: #3a3d52; cursor: not-allowed; }
+
+    .progress { display: none; margin-top: 16px; }
+    .progress-bar {
+      height: 4px; background: #2e3147; border-radius: 2px; overflow: hidden;
+    }
+    .progress-bar-inner {
+      height: 100%; background: #7c6af7; width: 0%;
+      animation: progress-anim 2s ease-in-out infinite;
+    }
+    @keyframes progress-anim { 0%{width:0%} 50%{width:70%} 100%{width:90%} }
+    .progress p { font-size: 0.85rem; color: #888; margin-top: 8px; }
+
+    #results { display: none; }
+
+    .summary {
+      display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
+    }
+    .summary-card {
+      flex: 1; min-width: 140px; background: #22253a; border-radius: 10px;
+      padding: 16px; text-align: center;
+    }
+    .summary-card .val { font-size: 2rem; font-weight: 700; color: #7c6af7; }
+    .summary-card .label { font-size: 0.8rem; color: #888; margin-top: 4px; }
+
+    .rep-card {
+      background: #22253a; border-radius: 10px; padding: 20px;
+      margin-bottom: 16px; border-left: 4px solid #3a3d52;
+    }
+    .rep-card.anomaly { border-left-color: #e05c6a; }
+    .rep-card.normal  { border-left-color: #4caf7d; }
+
+    .rep-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+    }
+    .rep-header h3 { font-size: 1rem; }
+    .badge {
+      padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+    }
+    .badge.anomaly { background: rgba(224,92,106,0.2); color: #e05c6a; }
+    .badge.normal  { background: rgba(76,175,125,0.2); color: #4caf7d; }
+
+    .rep-score { font-size: 0.85rem; color: #888; margin-bottom: 10px; }
+    .rep-score span { color: #ccc; }
+
+    .joints { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .joint-tag {
+      padding: 4px 10px; background: rgba(124,106,247,0.15);
+      border-radius: 6px; font-size: 0.8rem; color: #9d8df7;
+    }
+
+    .feedback {
+      background: #1a1d27; border-radius: 8px; padding: 14px;
+      font-size: 0.9rem; line-height: 1.6; color: #d0d0d0;
+      border: 1px solid #2e3147;
+    }
+
+    .error-msg {
+      background: rgba(224,92,106,0.1); border: 1px solid #e05c6a;
+      border-radius: 8px; padding: 14px; color: #e05c6a; display: none;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>BodyFit</h1>
+  <p>체형 조건부 딥러닝 운동 자세 분석</p>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h2>운동 종목 선택</h2>
+    <div class="exercise-btns">
+      <button class="active" data-ex="squat">스쿼트</button>
+      <button data-ex="bench">벤치프레스</button>
+      <button data-ex="deadlift">데드리프트</button>
+      <button data-ex="ohp">오버헤드프레스</button>
+    </div>
+
+    <h2>영상 업로드</h2>
+    <div class="upload-area" id="uploadArea">
+      <input type="file" id="fileInput" accept="video/*">
+      <div class="icon">🎬</div>
+      <p>mp4 영상을 드래그하거나 클릭해서 선택하세요</p>
+      <p style="font-size:0.78rem; color:#555; margin-top:6px;">5~30초, 720p 이상 권장</p>
+      <p class="filename" id="fileName"></p>
+    </div>
+
+    <button class="btn-analyze" id="btnAnalyze" disabled>분석 시작</button>
+
+    <div class="progress" id="progress">
+      <div class="progress-bar"><div class="progress-bar-inner"></div></div>
+      <p>포즈 추출 및 분석 중...</p>
+    </div>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div id="results">
+    <div class="card">
+      <h2>분석 요약</h2>
+      <div class="summary">
+        <div class="summary-card">
+          <div class="val" id="sumReps">-</div>
+          <div class="label">총 rep 수</div>
+        </div>
+        <div class="summary-card">
+          <div class="val" id="sumAnomalies">-</div>
+          <div class="label">이상 rep</div>
+        </div>
+        <div class="summary-card">
+          <div class="val" id="sumRate">-</div>
+          <div class="label">이상 비율</div>
+        </div>
+        <div class="summary-card">
+          <div class="val" id="sumAvgScore">-</div>
+          <div class="label">평균 점수</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Rep별 상세 결과</h2>
+      <div id="repList"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let selectedExercise = 'squat';
+  let selectedFile = null;
+
+  // 종목 선택
+  document.querySelectorAll('.exercise-btns button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.exercise-btns button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedExercise = btn.dataset.ex;
+    });
+  });
+
+  // 파일 선택
+  const uploadArea = document.getElementById('uploadArea');
+  const fileInput  = document.getElementById('fileInput');
+  const fileName   = document.getElementById('fileName');
+  const btnAnalyze = document.getElementById('btnAnalyze');
+
+  uploadArea.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) setFile(e.target.files[0]);
+  });
+  uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag'); });
+  uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag'));
+  uploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadArea.classList.remove('drag');
+    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+
+  function setFile(file) {
+    selectedFile = file;
+    fileName.textContent = file.name;
+    btnAnalyze.disabled = false;
+  }
+
+  // 분석 요청
+  btnAnalyze.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    document.getElementById('progress').style.display = 'block';
+    document.getElementById('results').style.display  = 'none';
+    document.getElementById('errorMsg').style.display = 'none';
+    btnAnalyze.disabled = true;
+
+    const form = new FormData();
+    form.append('video', selectedFile);
+    form.append('exercise', selectedExercise);
+
+    try {
+      const res  = await fetch('/analyze', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '서버 오류');
+      renderResults(data);
+    } catch(err) {
+      const el = document.getElementById('errorMsg');
+      el.textContent = '오류: ' + err.message;
+      el.style.display = 'block';
+    } finally {
+      document.getElementById('progress').style.display = 'none';
+      btnAnalyze.disabled = false;
+    }
+  });
+
+  function renderResults(data) {
+    const anomalies = data.reps.filter(r => r.is_anomaly).length;
+    const avgScore  = (data.reps.reduce((s,r) => s + r.anomaly_score, 0) / data.reps.length).toFixed(4);
+
+    document.getElementById('sumReps').textContent     = data.total_reps;
+    document.getElementById('sumAnomalies').textContent = anomalies;
+    document.getElementById('sumRate').textContent     = Math.round(anomalies / data.total_reps * 100) + '%';
+    document.getElementById('sumAvgScore').textContent = avgScore;
+
+    const list = document.getElementById('repList');
+    list.innerHTML = '';
+    data.reps.forEach(rep => {
+      const isAnom = rep.is_anomaly;
+      const card = document.createElement('div');
+      card.className = `rep-card ${isAnom ? 'anomaly' : 'normal'}`;
+      card.innerHTML = `
+        <div class="rep-header">
+          <h3>Rep ${rep.rep_idx}</h3>
+          <span class="badge ${isAnom ? 'anomaly' : 'normal'}">${isAnom ? '⚠ 이상' : '✓ 정상'}</span>
+        </div>
+        <div class="rep-score">
+          이상 점수: <span>${rep.anomaly_score}</span> &nbsp;|&nbsp; 기준: <span>${rep.threshold}</span>
+        </div>
+        <div class="joints">
+          ${rep.top_joints.map(j => `<span class="joint-tag">${j}</span>`).join('')}
+        </div>
+        <div class="feedback">${rep.feedback}</div>
+      `;
+      list.appendChild(card);
+    });
+
+    document.getElementById('results').style.display = 'block';
+  }
+</script>
+
+</body>
+</html>
