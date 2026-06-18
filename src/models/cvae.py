@@ -76,6 +76,25 @@ class CVAE(nn.Module):
         pose_recon = self.decode(mu, body)
         return F.mse_loss(pose_recon, pose_flat, reduction='none').mean(dim=1)
 
+    def joint_attribution(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
+        """관절별 재구성 오류 → heatmap.
+
+        BC-STNF의 gradient 기반 방식과 달리 직접적: 어느 관절이 잘못 재구성됐는지 바로 확인.
+
+        Args:
+            pose: (B, 64, 33, 3)
+            body: (B, 7)
+        Returns:
+            heatmap: (B, 64, 33) — 값이 클수록 해당 관절/프레임 재구성 오류 큼
+        """
+        with torch.no_grad():
+            B = pose.size(0)
+            pose_flat = pose.view(B, -1)
+            mu, _ = self.encode(pose_flat, body)
+            pose_recon = self.decode(mu, body).view(B, 64, 33, 3)
+            # 관절별 유클리드 오류: (B, 64, 33, 3) → norm over xyz → (B, 64, 33)
+            return (pose_recon - pose).pow(2).sum(dim=-1).sqrt()
+
     @staticmethod
     def compute_loss(
         pose: torch.Tensor,
