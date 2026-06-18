@@ -1,4 +1,4 @@
-"""정상/이상 anomaly score 분포 확인 스크립트.
+"""정상/이상 anomaly score 분포 비교 (NLL / z-norm / log_det).
 
 Usage:
     python3 -m src.evaluation.score_dist \
@@ -7,15 +7,39 @@ Usage:
         --device cuda
 """
 import argparse
-import json
 from pathlib import Path
 
 import numpy as np
 import torch
+from sklearn.metrics import roc_auc_score
+from torch.utils.data import DataLoader
 
 from src.data.tier3_dataset import Tier3Dataset
 from src.models.bc_stnf import BCSTNF
-from torch.utils.data import DataLoader
+
+
+def collect(model, score_fn, loader, device, body_mean, body_std):
+    normal, abnormal = [], []
+    with torch.no_grad():
+        for pose, body, label in loader:
+            pose, body = pose.to(device), body.to(device)
+            if body_mean is not None:
+                body = (body - body_mean) / body_std
+            scores = score_fn(pose, body).cpu().numpy()
+            for s, l in zip(scores, label.numpy()):
+                (normal if l == 0 else abnormal).append(s)
+    return np.array(normal), np.array(abnormal)
+
+
+def report(name, normal, abnormal):
+    all_scores = np.concatenate([normal, abnormal])
+    all_labels = np.array([0] * len(normal) + [1] * len(abnormal))
+    auroc = roc_auc_score(all_labels, all_scores)
+    print(f"\n=== {name} ===")
+    print(f"  정상 ({len(normal):3d}개): mean={normal.mean():.2f}  std={normal.std():.2f}")
+    print(f"  이상 ({len(abnormal):3d}개): mean={abnormal.mean():.2f}  std={abnormal.std():.2f}")
+    print(f"  정상 mean > 이상 mean (역전): {normal.mean() > abnormal.mean()}")
+    print(f"  AUROC: {auroc:.4f}")
 
 
 def main():
@@ -23,6 +47,7 @@ def main():
     parser.add_argument("--ckpt", required=True, type=Path)
     parser.add_argument("--tier3_root", required=True, type=Path)
     parser.add_argument("--labels_path", type=Path, default=None)
+    parser.add_argument("--max_per_class", type=int, default=None)
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
 
@@ -38,37 +63,17 @@ def main():
         body_std = body_std.to(args.device)
 
     labels_path = args.labels_path or args.tier3_root / "labels.json"
-    ds = Tier3Dataset(root=args.tier3_root, labels_path=labels_path)
+    ds = Tier3Dataset(root=args.tier3_root, labels_path=labels_path, max_per_class=args.max_per_class)
     loader = DataLoader(ds, batch_size=32, shuffle=False)
+    print(f"평가셋: {ds.label_counts()}")
 
-    normal_scores, abnormal_scores = [], []
-    with torch.no_grad():
-        for pose, body, label in loader:
-            pose, body = pose.to(args.device), body.to(args.device)
-            if body_mean is not None:
-                body = (body - body_mean) / body_std
-            scores = model.anomaly_score(pose, body).cpu().numpy()
-            for s, l in zip(scores, label.numpy()):
-                if l == 0:
-                    normal_scores.append(s)
-                else:
-                    abnormal_scores.append(s)
-
-    normal_scores = np.array(normal_scores)
-    abnormal_scores = np.array(abnormal_scores)
-
-    print(f"\n=== Score 분포 (BC-STNF) ===")
-    print(f"정상  ({len(normal_scores):3d}개): mean={normal_scores.mean():.2f}  std={normal_scores.std():.2f}  min={normal_scores.min():.2f}  max={normal_scores.max():.2f}")
-    print(f"이상  ({len(abnormal_scores):3d}개): mean={abnormal_scores.mean():.2f}  std={abnormal_scores.std():.2f}  min={abnormal_scores.min():.2f}  max={abnormal_scores.max():.2f}")
-    print(f"\n정상 mean > 이상 mean: {normal_scores.mean() > abnormal_scores.mean()} (True면 점수 역전 — 이상이 낮은 NLL)")
-
-    # 겹치는 비율
-    overlap = np.mean(abnormal_scores < normal_scores.mean())
-    print(f"이상 샘플 중 정상 mean보다 낮은 비율: {overlap:.1%}")
-
-    # percentile 확인
-    for p in [10, 25, 50, 75, 90]:
-        print(f"  정상 {p}th percentile: {np.percentile(normal_scores, p):.2f} | 이상 {p}th percentile: {np.percentile(abnormal_scores, p):.2f}")
+    for name, fn in [
+        ("NLL (기존)", model.anomaly_score),
+        ("z-norm (||z||²/D)", model.znorm_score),
+        ("-log_det", model.logdet_score),
+    ]:
+        n, ab = collect(model, fn, loader, args.device, body_mean, body_std)
+        report(name, n, ab)
 
 
 if __name__ == "__main__":

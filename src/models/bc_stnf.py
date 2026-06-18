@@ -51,6 +51,22 @@ class BCSTNF(nn.Module):
             log_prob = _PRIOR.log_prob(z).sum(dim=-1) + log_det
             return -log_prob
 
+    def znorm_score(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
+        """||z||²/D — log_det 제외, prior term만 사용."""
+        with torch.no_grad():
+            c = self.body_enc(body)
+            feat = self.stgcn(pose, c).mean(dim=1)
+            z, _, _ = self.flow(feat.flatten(1), c)
+            return (z ** 2).mean(dim=-1)  # (B,)
+
+    def logdet_score(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
+        """-log_det만 사용 — coupling layer 민감도 확인용."""
+        with torch.no_grad():
+            c = self.body_enc(body)
+            feat = self.stgcn(pose, c).mean(dim=1)
+            _, log_det, _ = self.flow(feat.flatten(1), c)
+            return -log_det  # (B,)
+
     def joint_attribution(self, pose: torch.Tensor, body: torch.Tensor) -> torch.Tensor:
         """gradient norm w.r.t. pose → heatmap.
 
