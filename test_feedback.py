@@ -37,9 +37,9 @@ def main():
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
-    if "ANTHROPIC_API_KEY" not in os.environ:
-        print("ANTHROPIC_API_KEY 없음 — .env 파일에 추가하거나 환경변수로 설정하세요.")
-        print("  echo 'ANTHROPIC_API_KEY=sk-ant-...' >> /home/work/body_fit/.env")
+    if "OPENAI_API_KEY" not in os.environ:
+        print("OPENAI_API_KEY 없음 — .env 파일에 추가하거나 환경변수로 설정하세요.")
+        print("  echo 'OPENAI_API_KEY=sk-proj-...' >> /home/work/body_fit/.env")
         return
 
     device = args.device

@@ -1,10 +1,10 @@
-"""Claude API 연동 자세 피드백 생성."""
+"""OpenAI API 연동 자세 피드백 생성."""
 
 from __future__ import annotations
 
 import os
 
-import anthropic
+import openai
 import numpy as np
 
 # MediaPipe BlazePose 33 keypoint 한국어 이름
@@ -89,23 +89,23 @@ def generate_feedback(
     anomaly_score: float,
     threshold: float,
     top_joints: list[str],
-    model: str = "claude-sonnet-4-6",
+    model: str = "gpt-4o",
     api_key: str | None = None,
 ) -> str:
-    """Claude API로 자세 교정 피드백 생성.
+    """OpenAI API로 자세 교정 피드백 생성.
 
     Args:
         exercise:      운동 종류 ("squat" | "bench" | "deadlift" | "ohp")
-        anomaly_score: -log P(pose|body) 값
-        threshold:     val set 5th percentile 기준값
+        anomaly_score: 이상 점수 값
+        threshold:     val set 기준값
         top_joints:    문제 관절 이름 리스트
-        model:         Claude 모델 ID
-        api_key:       None이면 ANTHROPIC_API_KEY 환경변수 사용
+        model:         OpenAI 모델 ID
+        api_key:       None이면 OPENAI_API_KEY 환경변수 사용
 
     Returns:
         한국어 피드백 문자열 (2~3문장)
     """
-    client = anthropic.Anthropic(api_key=api_key or os.environ["ANTHROPIC_API_KEY"])
+    client = openai.OpenAI(api_key=api_key or os.environ["OPENAI_API_KEY"])
 
     exercise_ko = EXERCISE_KO.get(exercise, exercise)
     ratio = anomaly_score / threshold if threshold > 0 else 1.0
@@ -119,12 +119,12 @@ def generate_feedback(
         f"구체적인 교정 방법을 포함하고, 전문 용어는 쉽게 풀어서 설명하세요."
     )
 
-    message = client.messages.create(
+    response = client.chat.completions.create(
         model=model,
         max_tokens=256,
         messages=[{"role": "user", "content": prompt}],
     )
-    return message.content[0].text
+    return response.choices[0].message.content
 
 
 def feedback_from_model_output(
