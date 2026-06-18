@@ -41,6 +41,8 @@ class Tier3Dataset(Dataset):
         root: Path | str | None = None,
         labels_path: Path | str | None = None,
         exercises: list[str] | None = None,
+        max_per_class: int | None = None,
+        seed: int = 42,
     ):
         self.root = Path(root) if root else TEST_DIR
         labels_path = Path(labels_path) if labels_path else self.root / "labels.json"
@@ -51,7 +53,7 @@ class Tier3Dataset(Dataset):
                                     "label_tier3.py 실행 후 labels_draft.json → labels.json 으로 복사하세요.")
 
         self.labels: dict = json.loads(labels_path.read_text())
-        self.samples: list[tuple[Path, int]] = []  # (npz_path, label)
+        all_samples: list[tuple[Path, int]] = []
 
         for exercise in self.exercises:
             ex_dir = self.root / exercise
@@ -63,9 +65,20 @@ class Tier3Dataset(Dataset):
                 if entry is None:
                     continue
                 label = entry.get("label", -1)
-                if label not in (0, 1):  # 미라벨(-1) 또는 파싱 실패 스킵
+                if label not in (0, 1):
                     continue
-                self.samples.append((npz_path, label))
+                all_samples.append((npz_path, label))
+
+        if max_per_class is not None:
+            import random
+            rng = random.Random(seed)
+            normal = [s for s in all_samples if s[1] == 0]
+            abnormal = [s for s in all_samples if s[1] == 1]
+            normal = rng.sample(normal, min(max_per_class, len(normal)))
+            abnormal = rng.sample(abnormal, min(max_per_class, len(abnormal)))
+            all_samples = normal + abnormal
+
+        self.samples: list[tuple[Path, int]] = all_samples
 
     def __len__(self) -> int:
         return len(self.samples)

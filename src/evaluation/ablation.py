@@ -181,6 +181,7 @@ def run_ablation(
     device: str = "cpu",
     exercises: list[str] | None = None,
     batch_size: int = 32,
+    max_per_class: int | None = None,
 ) -> dict:
     """5종 ablation 실행 → 결과 dict 반환 + results/ablation.json 저장.
 
@@ -203,7 +204,7 @@ def run_ablation(
     # 평가용: Tier3Dataset (정상+이상 라벨 포함)
     t3_root = Path(tier3_root) if tier3_root else Path(data_root).parent / "test"
     t3_labels = Path(labels_path) if labels_path else t3_root / "labels.json"
-    tier3_ds = Tier3Dataset(root=t3_root, labels_path=t3_labels)
+    tier3_ds = Tier3Dataset(root=t3_root, labels_path=t3_labels, max_per_class=max_per_class)
     tier3_loader = DataLoader(tier3_ds, batch_size=batch_size, shuffle=False)
     print(f"Tier3 평가셋: {tier3_ds.label_counts()}")
 
@@ -318,6 +319,7 @@ if __name__ == "__main__":
     parser.add_argument("--labels_path", type=Path, default=None)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--exercises", nargs="+", default=EXERCISES)
+    parser.add_argument("--max_per_class", type=int, default=None)
     args = parser.parse_args()
 
     res = run_ablation(
@@ -326,5 +328,6 @@ if __name__ == "__main__":
         labels_path=args.labels_path,
         device=args.device,
         exercises=args.exercises,
+        max_per_class=args.max_per_class,
     )
     _print_table(res)
