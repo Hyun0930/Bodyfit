@@ -30,7 +30,8 @@ def main():
     model.load_state_dict(ckpt.get("model_state", ckpt), strict=False)
     model.eval()
 
-    ds = BodyFitDataset(args.data_root, split="val")
+    ds_full = BodyFitDataset(root=Path(args.data_root))
+    _, ds = ds_full.split(train_ratio=0.9, seed=42)
     print(f"val set 크기: {len(ds)}")
 
     scores = []
