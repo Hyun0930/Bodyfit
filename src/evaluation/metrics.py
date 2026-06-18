@@ -108,6 +108,8 @@ def evaluate_model(
     device: str,
     threshold: float | None = None,
     label_fn=None,
+    body_mean: torch.Tensor | None = None,
+    body_std: torch.Tensor | None = None,
 ) -> dict:
     """모델 + DataLoader → metrics dict.
 
@@ -138,6 +140,8 @@ def evaluate_model(
 
         pose = pose.to(device)
         body = body.to(device)
+        if body_mean is not None and body_std is not None:
+            body = (body - body_mean.to(device)) / body_std.to(device)
         scores = model.anomaly_score(pose, body).cpu().numpy()
         all_scores.append(scores)
         all_labels.append(label.numpy())

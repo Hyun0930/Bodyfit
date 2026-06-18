@@ -136,23 +136,39 @@ class ClusterCondBCSTNF(nn.Module):
 # Ablation 실행기
 # ---------------------------------------------------------------------------
 
-def _load_model(model: nn.Module, ckpt_path: Path, device: str) -> bool:
-    """checkpoint가 있으면 로드, 없으면 False 반환."""
+def _load_model(
+    model: nn.Module, ckpt_path: Path, device: str
+) -> tuple[bool, torch.Tensor | None, torch.Tensor | None]:
+    """checkpoint 로드 → (성공여부, body_mean, body_std) 반환."""
     if not ckpt_path.exists():
-        return False
-    ckpt = torch.load(ckpt_path, map_location=device)
+        return False, None, None
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
     state = ckpt.get("model_state", ckpt)
     model.load_state_dict(state, strict=False)
-    return True
+    body_mean = ckpt.get("body_mean")
+    body_std = ckpt.get("body_std")
+    if body_mean is not None:
+        body_mean = body_mean.to(device)
+    if body_std is not None:
+        body_std = body_std.to(device)
+    return True, body_mean, body_std
 
 
-def _collect_scores(model: nn.Module, loader: DataLoader, device: str) -> np.ndarray:
+def _collect_scores(
+    model: nn.Module,
+    loader: DataLoader,
+    device: str,
+    body_mean: torch.Tensor | None = None,
+    body_std: torch.Tensor | None = None,
+) -> np.ndarray:
     model.eval()
     model.to(device)
     scores = []
     with torch.no_grad():
         for batch in loader:
             pose, body = batch[0].to(device), batch[1].to(device)
+            if body_mean is not None and body_std is not None:
+                body = (body - body_mean) / body_std
             scores.append(model.anomaly_score(pose, body).cpu().numpy())
     return np.concatenate(scores)
 
@@ -195,13 +211,13 @@ def run_ablation(
     print("[Ablation 1] 체형 조건화 유무")
     bc_model = BCSTNF()
     no_cond = NoCondBCSTNF()
-    bc_ok = _load_model(bc_model, ckpt_dir / "bc_stnf" / "best.pt", device)
-    nc_ok = _load_model(no_cond, ckpt_dir / "no_cond" / "best.pt", device)
+    bc_ok, bc_mean, bc_std = _load_model(bc_model, ckpt_dir / "bc_stnf" / "best.pt", device)
+    nc_ok, nc_mean, nc_std = _load_model(no_cond, ckpt_dir / "no_cond" / "best.pt", device)
     if bc_ok and nc_ok:
-        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device))
-        results["ablation1_with_cond"] = evaluate_model(bc_model, tier3_loader, device, thr)
-        nc_thr = threshold_from_val(_collect_scores(no_cond, val_loader, device))
-        results["ablation1_no_cond"] = evaluate_model(no_cond, tier3_loader, device, nc_thr)
+        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device, bc_mean, bc_std))
+        results["ablation1_with_cond"] = evaluate_model(bc_model, tier3_loader, device, thr, body_mean=bc_mean, body_std=bc_std)
+        nc_thr = threshold_from_val(_collect_scores(no_cond, val_loader, device, nc_mean, nc_std))
+        results["ablation1_no_cond"] = evaluate_model(no_cond, tier3_loader, device, nc_thr, body_mean=nc_mean, body_std=nc_std)
     else:
         results["ablation1"] = "no_checkpoint"
         print("  → checkpoint 없음, skip")
@@ -209,12 +225,12 @@ def run_ablation(
     # ---- Ablation 2: CVAE vs BC-STNF ----
     print("[Ablation 2] CVAE vs BC-STNF")
     cvae = CVAE()
-    cvae_ok = _load_model(cvae, ckpt_dir / "cvae" / "best.pt", device)
+    cvae_ok, cvae_mean, cvae_std = _load_model(cvae, ckpt_dir / "cvae" / "best.pt", device)
     if bc_ok and cvae_ok:
-        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device))
-        results["ablation2_bc_stnf"] = evaluate_model(bc_model, tier3_loader, device, thr)
-        cvae_thr = threshold_from_val(_collect_scores(cvae, val_loader, device))
-        results["ablation2_cvae"] = evaluate_model(cvae, tier3_loader, device, cvae_thr)
+        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device, bc_mean, bc_std))
+        results["ablation2_bc_stnf"] = evaluate_model(bc_model, tier3_loader, device, thr, body_mean=bc_mean, body_std=bc_std)
+        cvae_thr = threshold_from_val(_collect_scores(cvae, val_loader, device, cvae_mean, cvae_std))
+        results["ablation2_cvae"] = evaluate_model(cvae, tier3_loader, device, cvae_thr, body_mean=cvae_mean, body_std=cvae_std)
     else:
         results["ablation2"] = "no_checkpoint"
         print("  → checkpoint 없음, skip")
@@ -222,12 +238,12 @@ def run_ablation(
     # ---- Ablation 3: ST-GCN vs MLP ----
     print("[Ablation 3] ST-GCN vs MLP")
     mlp_model = MLPFeatureBCSTNF()
-    mlp_ok = _load_model(mlp_model, ckpt_dir / "mlp_feat" / "best.pt", device)
+    mlp_ok, mlp_mean, mlp_std = _load_model(mlp_model, ckpt_dir / "mlp_feat" / "best.pt", device)
     if bc_ok and mlp_ok:
-        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device))
-        results["ablation3_stgcn"] = evaluate_model(bc_model, tier3_loader, device, thr)
-        mlp_thr = threshold_from_val(_collect_scores(mlp_model, val_loader, device))
-        results["ablation3_mlp"] = evaluate_model(mlp_model, tier3_loader, device, mlp_thr)
+        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device, bc_mean, bc_std))
+        results["ablation3_stgcn"] = evaluate_model(bc_model, tier3_loader, device, thr, body_mean=bc_mean, body_std=bc_std)
+        mlp_thr = threshold_from_val(_collect_scores(mlp_model, val_loader, device, mlp_mean, mlp_std))
+        results["ablation3_mlp"] = evaluate_model(mlp_model, tier3_loader, device, mlp_thr, body_mean=mlp_mean, body_std=mlp_std)
     else:
         results["ablation3"] = "no_checkpoint"
         print("  → checkpoint 없음, skip")
@@ -235,12 +251,12 @@ def run_ablation(
     # ---- Ablation 4: Cluster vs Continuous body encoding ----
     print("[Ablation 4] Cluster vs Continuous body encoding")
     cluster_model = ClusterCondBCSTNF()
-    cl_ok = _load_model(cluster_model, ckpt_dir / "cluster_cond" / "best.pt", device)
+    cl_ok, cl_mean, cl_std = _load_model(cluster_model, ckpt_dir / "cluster_cond" / "best.pt", device)
     if bc_ok and cl_ok:
-        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device))
-        results["ablation4_continuous"] = evaluate_model(bc_model, tier3_loader, device, thr)
-        cl_thr = threshold_from_val(_collect_scores(cluster_model, val_loader, device))
-        results["ablation4_cluster"] = evaluate_model(cluster_model, tier3_loader, device, cl_thr)
+        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device, bc_mean, bc_std))
+        results["ablation4_continuous"] = evaluate_model(bc_model, tier3_loader, device, thr, body_mean=bc_mean, body_std=bc_std)
+        cl_thr = threshold_from_val(_collect_scores(cluster_model, val_loader, device, cl_mean, cl_std))
+        results["ablation4_cluster"] = evaluate_model(cluster_model, tier3_loader, device, cl_thr, body_mean=cl_mean, body_std=cl_std)
     else:
         results["ablation4"] = "no_checkpoint"
         print("  → checkpoint 없음, skip")
@@ -248,8 +264,8 @@ def run_ablation(
     # ---- Ablation 5: 종목별 분리 vs 통합 모델 ----
     print("[Ablation 5] 종목별 분리 vs 통합 모델")
     if bc_ok:
-        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device))
-        results["ablation5_unified"] = evaluate_model(bc_model, tier3_loader, device, thr)
+        thr = threshold_from_val(_collect_scores(bc_model, val_loader, device, bc_mean, bc_std))
+        results["ablation5_unified"] = evaluate_model(bc_model, tier3_loader, device, thr, body_mean=bc_mean, body_std=bc_std)
         per_ex_metrics = {}
         for ex in exercises:
             ex_train = BodyFitDataset(exercises=[ex], root=data_root)
@@ -259,9 +275,10 @@ def run_ablation(
             ex_tier3_loader = DataLoader(ex_tier3, batch_size=batch_size, shuffle=False)
             ex_model = BCSTNF()
             ex_ckpt = ckpt_dir / f"bc_stnf_{ex}" / "best.pt"
-            if _load_model(ex_model, ex_ckpt, device):
-                ex_thr = threshold_from_val(_collect_scores(ex_model, ex_val_loader, device))
-                per_ex_metrics[ex] = evaluate_model(ex_model, ex_tier3_loader, device, ex_thr)
+            ex_ok, ex_mean, ex_std = _load_model(ex_model, ex_ckpt, device)
+            if ex_ok:
+                ex_thr = threshold_from_val(_collect_scores(ex_model, ex_val_loader, device, ex_mean, ex_std))
+                per_ex_metrics[ex] = evaluate_model(ex_model, ex_tier3_loader, device, ex_thr, body_mean=ex_mean, body_std=ex_std)
             else:
                 per_ex_metrics[ex] = "no_checkpoint"
         results["ablation5_per_exercise"] = per_ex_metrics
