@@ -105,13 +105,14 @@ def compute_train_stats(processed_root: Path, n_sample: int = 3000, seed: int = 
 # ──────────────────────────────────────────────────
 
 def ood_score(pose: np.ndarray, train_mean: np.ndarray, train_std: np.ndarray) -> float:
-    """프레임 평균 포즈의 관절별 z-score 평균.
+    """프레임 평균 포즈의 관절별 z-score 최댓값.
 
-    낮을수록 학습 분포에 가까움 (정상에 가까움).
+    max z-score 사용: 특정 관절 하나라도 분포 밖이면 검출.
+    (mean은 99차원 평균으로 신호 희석됨)
     """
     p_mean = pose.mean(axis=0)           # (33, 3)
     z = np.abs((p_mean - train_mean) / train_std)  # (33, 3)
-    return float(z.mean())
+    return float(z.max())
 
 
 # ──────────────────────────────────────────────────
@@ -173,16 +174,16 @@ def build_dist_synth_eval(
     tier3_root: Path,
     output_dir: Path,
     n_train_sample: int = 3000,
-    ood_threshold: float = 1.5,
-    perturb_k: float = 2.5,
+    ood_threshold: float = 5.0,
+    perturb_k: float = 8.0,
     n_per_normal: int = 4,
     exercises: list = None,
 ):
     """Tier3 분포 분석 + 합성 이상 생성 → labels.json 출력.
 
     Args:
-        ood_threshold: 이 z-score 이하면 정상으로 분류
-        perturb_k: 합성 이상 생성 시 k·σ 배율 (2.5 = 학습 분포 2.5σ 밖)
+        ood_threshold: 이 max z-score 이하면 정상으로 분류 (기본 5.0)
+        perturb_k: 합성 이상 생성 시 k·σ 배율 (기본 8.0 = 학습 분포 8σ 밖)
         n_per_normal: 정상 샘플 1개당 합성 이상 수
     """
     exercises = exercises or EXERCISES
@@ -286,10 +287,10 @@ def main():
                         help="출력 디렉토리 (새 test_dist_synth/)")
     parser.add_argument("--n_train_sample", type=int, default=3000,
                         help="학습 통계 계산에 사용할 파일 수 (기본 3000)")
-    parser.add_argument("--ood_threshold", type=float, default=1.5,
-                        help="Tier3 정상 판별 OOD 임계값 (기본 1.5σ)")
-    parser.add_argument("--perturb_k", type=float, default=2.5,
-                        help="합성 이상 이탈 강도 (k·σ, 기본 2.5)")
+    parser.add_argument("--ood_threshold", type=float, default=5.0,
+                        help="Tier3 정상 판별 OOD 임계값 — max z-score 기준 (기본 5.0)")
+    parser.add_argument("--perturb_k", type=float, default=8.0,
+                        help="합성 이상 이탈 강도 (k·σ, 기본 8.0)")
     parser.add_argument("--n_per_normal", type=int, default=4,
                         help="정상 샘플당 합성 이상 수 (기본 4)")
     parser.add_argument("--exercises", nargs="+", default=EXERCISES)
