@@ -9,7 +9,8 @@ WORKDIR /app
 
 # 의존성 먼저 설치 (레이어 캐시 활용)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir fastapi uvicorn[standard] python-multipart python-dotenv
 
 # 소스 코드 복사

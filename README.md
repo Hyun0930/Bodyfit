@@ -233,6 +233,19 @@ open http://localhost:8000
 
 영상(mp4, 5~30초, 720p+)을 업로드하면 rep별 이상 점수 + 문제 관절 + GPT-4o 한국어 피드백이 표시된다.
 
+### 데모 영상
+
+`demo/` 폴더에 종목별 정상/이상 샘플 영상이 포함되어 있다. 프론트엔드 동작 확인에 바로 사용할 수 있다.
+
+```
+demo/
+├── squat/normal_squat.mp4
+├── bench/normal_bench.mp4
+├── deadlift/abnormal_deadlift.mp4
+├── ohp/normal_ohp.mp4
+└── ohp/abnormal_ohp.mp4
+```
+
 ### Docker 없이 직접 실행
 
 ```bash
