@@ -12,7 +12,7 @@ import numpy as np
 import torch
 
 from src.data.extract_keypoints import extract_keypoints
-from src.data.preprocess import normalize, segment_reps, resample
+from src.data.preprocess import segment_reps, resample
 from src.data.body_feature import extract_body_feature
 from src.models.cvae import CVAE
 from src.evaluation.llm_feedback import feedback_from_model_output, heatmap_to_top_joints
@@ -69,16 +69,13 @@ class BodyFitInference:
         if kps is None or len(kps) < 20:
             raise ValueError("포즈 추출 실패 또는 영상이 너무 짧습니다.")
 
-        # 2. 정규화
-        pose_norm = normalize(kps)  # (T, 33, 3)
-
-        # 3. body feature (전체 영상에서 한 번 추출)
+        # 2. body feature (전체 영상에서 한 번 추출)
         body = extract_body_feature(kps)  # (7,)
         if np.any(np.abs(body) > 100):
             body = np.clip(body, -10, 10)
 
-        # 4. rep 분할
-        reps = segment_reps(pose_norm, self.exercise)  # list of (frames, 33, 3)
+        # 3. rep 분할 (segment_reps 내부에서 normalize 처리)
+        reps = segment_reps(kps, self.exercise)  # list of (frames, 33, 3)
         if not reps:
             raise ValueError("rep을 감지하지 못했습니다. 영상에 동작이 충분한지 확인하세요.")
 
@@ -88,7 +85,7 @@ class BodyFitInference:
             body_t = (body_t - self.body_mean) / self.body_std
 
         results = []
-        for i, rep in enumerate(reps):
+        for i, (rep, _, _) in enumerate(reps):
             pose_64 = resample(rep)  # (64, 33, 3)
             pose_t = torch.tensor(pose_64, dtype=torch.float32).unsqueeze(0).to(self.device)
 
