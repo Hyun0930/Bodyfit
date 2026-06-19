@@ -258,7 +258,7 @@ OPENAI_API_KEY=sk-... uvicorn app:app --host 0.0.0.0 --port 8000
 ```python
 from src.inference import BodyFitInference
 
-engine = BodyFitInference(exercise="squat", ckpt_path="checkpoints/cvae_squat/best.pt")
+engine = BodyFitInference(exercise="squat", ckpt_path="checkpoints/cvae/best.pt")
 results = engine.run("my_squat.mp4")
 
 for r in results:
@@ -289,7 +289,7 @@ for r in results:
 
 AUROC는 synthetic 평가에서 동일하지만, 이는 synthetic 이상이 body feature를 변경하지 않기 때문. 실제 다양한 체형 사용자에서 효과 기대.
 
-### 실제 Tier3 (GPT-4o 라벨, 59:59 balanced)
+### 실제 Tier2 (GPT-4o 라벨, 59:59 balanced)
 
 모든 모델 AUROC ≈ 0.5. **원인**: 학습·평가 데이터 모두 YouTube 선수 영상 → 동일 분포. 파워리프팅 특유의 미세 오류가 학습 분포 내에 존재.
 
