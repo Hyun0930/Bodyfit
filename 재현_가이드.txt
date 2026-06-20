@@ -83,24 +83,29 @@ ZIP 압축 해제 후 디렉토리 구조:
   │       └── labels.json # GPT-4o + 수동 검수 라벨
 
 
-▶ CVAE 학습
+▶ CVAE 학습 (전종목 통합)
 --------------------------------------------------------------
   python -m src.training.train_cvae \
       --data_root data/processed \
-      --exercise  squat \
       --epochs    50 \
       --ckpt_dir  checkpoints/cvae
-  # bench / deadlift / ohp도 동일하게 실행
 
 
-▶ BC-STNF 학습
+▶ BC-STNF 학습 (전종목 통합)
 --------------------------------------------------------------
   python -m src.training.train_bc_stnf \
       --data_root data/processed \
-      --exercise  squat \
       --epochs    30 \
-      --ckpt_dir  checkpoints/bc_stnf_squat
-  # bench / deadlift / ohp도 동일하게 실행
+      --ckpt_dir  checkpoints/bc_stnf
+
+
+▶ BC-STNF 학습 (종목별 분리 — Ablation 5용)
+--------------------------------------------------------------
+  python -m src.training.train_bc_stnf \
+      --data_root   data/processed \
+      --epochs      30 \
+      --per_exercise \
+      --ckpt_dir    checkpoints
 
 
 ▶ Ablation 변형 모델 학습
