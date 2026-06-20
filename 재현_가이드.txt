@@ -1,0 +1,145 @@
+================================================================
+BodyFit 재현 가이드
+세종대학교 딥러닝 실습 기말 프로젝트 — 24013840 이동현
+GitHub: https://github.com/Hyun0930/Bodyfit.git
+================================================================
+
+================================================================
+[공통] 환경 설정 (ZIP / GitHub 동일)
+================================================================
+
+1. Python 3.11 환경 생성
+   conda create -n bodyfit python=3.11 -y
+   conda activate bodyfit
+
+2. 패키지 설치
+   pip install torch torchvision torchaudio
+   pip install -r requirements.txt
+   pip install fastapi "uvicorn[standard]" python-multipart python-dotenv
+   (OpenAI API 키는 제출 메일에 첨부하였습니다. 잔여 크레딧 약 2달러로 데모 재현 가능합니다.)
+
+
+================================================================
+[ZIP 파일] 압축 해제 후 바로 실행 가능한 것
+================================================================
+
+ZIP 파일에 포함된 것:
+  - 소스코드 전체 (src/, app.py, static/, scripts/)
+  - 체크포인트 (checkpoints/cvae/, checkpoints/no_body_cvae/,
+                 checkpoints/bc_stnf_squat/bench/deadlift/ohp/,
+                 checkpoints/cluster_cond/, checkpoints/mlp_feat/,
+                 checkpoints/no_cond/)
+  - 데모 영상 (demo/squat/, bench/, deadlift/, ohp/)
+
+ZIP 압축 해제 후 디렉토리 구조:
+  bodyfit/
+  ├── src/
+  ├── app.py
+  ├── checkpoints/       ← 포함됨
+  ├── demo/              ← 포함됨
+  ├── Dockerfile
+  ├── docker-compose.yml
+  └── requirements.txt
+
+
+▶ 도커 데모 실행 (체크포인트 포함이므로 바로 실행 가능)
+--------------------------------------------------------------
+  OPENAI_API_KEY=sk-... docker-compose up --build
+  → 브라우저에서 http://localhost:8000 접속
+  → demo/ 폴더의 영상 업로드하여 테스트
+
+▶ Docker 없이 직접 실행
+--------------------------------------------------------------
+  OPENAI_API_KEY=sk-... uvicorn app:app --host 0.0.0.0 --port 8000
+  → http://localhost:8000 접속
+
+
+================================================================
+[ZIP / GitHub 공통] 학습 데이터가 필요한 재현
+================================================================
+
+학습 데이터 다운로드 (Google Drive):
+  https://drive.google.com/drive/folders/1xGLGuo-CpdrVnBgGrH6HrbjtcSpZx3_9?usp=drive_link
+
+  BodyFit_Data/
+  ├── processed/   → 압축 해제 후 data/processed/ 에 위치
+  ├── test/        → 압축 해제 후 data/test/ 에 위치
+  └── checkpoints/ → GitHub 사용 시 checkpoints/ 에 위치
+
+데이터 배치 후 디렉토리 구조:
+  bodyfit/
+  ├── checkpoints/
+  ├── data/
+  │   ├── processed/
+  │   │   ├── squat/      # .npz 파일 11,250개
+  │   │   ├── bench/      # .npz 파일 38,489개
+  │   │   ├── deadlift/   # .npz 파일 28,078개
+  │   │   └── ohp/        # .npz 파일 12,697개
+  │   └── test/
+  │       ├── squat/      # .npz 평가 파일
+  │       ├── bench/
+  │       ├── deadlift/
+  │       ├── ohp/
+  │       └── labels.json # GPT-4o + 수동 검수 라벨
+
+
+▶ CVAE 학습
+--------------------------------------------------------------
+  python -m src.training.train_cvae \
+      --data_root data/processed \
+      --exercise  squat \
+      --epochs    50 \
+      --ckpt_dir  checkpoints/cvae
+  # bench / deadlift / ohp도 동일하게 실행
+
+
+▶ BC-STNF 학습
+--------------------------------------------------------------
+  python -m src.training.train_bc_stnf \
+      --data_root data/processed \
+      --exercise  squat \
+      --epochs    30 \
+      --ckpt_dir  checkpoints/bc_stnf_squat
+  # bench / deadlift / ohp도 동일하게 실행
+
+
+▶ Ablation 변형 모델 학습
+--------------------------------------------------------------
+  for VARIANT in no_cond mlp_feat cluster_cond no_body_cvae; do
+      python -m src.training.train_ablation \
+          --data_root data/processed \
+          --variant   $VARIANT \
+          --ckpt_dir  checkpoints/$VARIANT
+  done
+
+
+▶ Tier2 평가 (Synthetic OOD + 실제 라벨)
+--------------------------------------------------------------
+  python -m src.evaluation.ablation \
+      --processed_dir data/processed \
+      --ckpt_dir      checkpoints \
+      --out           results/ablation.json
+
+
+▶ 점수 분포 분석
+--------------------------------------------------------------
+  python -m src.evaluation.score_dist \
+      --processed_dir data/processed \
+      --ckpt_dir      checkpoints/cvae
+
+
+================================================================
+[GitHub] 소스코드만 있는 경우 추가 단계
+================================================================
+
+  git clone https://github.com/Hyun0930/Bodyfit.git
+  cd Bodyfit
+
+  1. 위 [공통] 환경 설정 수행
+  2. Google Drive에서 checkpoints/ + data/ 다운로드 후 배치
+  3. 위 학습 / 평가 / 도커 실행 동일하게 수행
+
+
+================================================================
+문의: 24013840 이동현
+================================================================
