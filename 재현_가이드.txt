@@ -110,7 +110,7 @@ ZIP 압축 해제 후 디렉토리 구조:
 
 ▶ Ablation 변형 모델 학습
 --------------------------------------------------------------
-  for VARIANT in no_cond mlp_feat cluster_cond no_body_cvae; do
+  for VARIANT in no_cond mlp_feat cluster_cond raw_flow no_body_cvae; do
       python -m src.training.train_ablation \
           --data_root data/processed \
           --variant   $VARIANT \

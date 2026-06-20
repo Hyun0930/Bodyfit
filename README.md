@@ -63,20 +63,10 @@ pip install -r requirements.txt
 pip install fastapi "uvicorn[standard]" python-multipart python-dotenv
 ```
 
-### MediaPipe 모델 다운로드
-
-```bash
-mkdir -p models_mediapipe
-curl -L -o models_mediapipe/pose_landmarker_heavy.task \
-  https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task
-```
-
 ### OpenAI API 키 설정
 
 ```bash
 export OPENAI_API_KEY="sk-..."
-# 또는 .env 파일에 저장
-echo "OPENAI_API_KEY=sk-..." > .env
 ```
 
 ---
@@ -184,31 +174,35 @@ python -m src.data.preprocess \
 # bench / deadlift / ohp도 동일하게 실행
 ```
 
-### Step 4 — CVAE 학습
+### Step 4 — CVAE 학습 (전종목 통합)
 
 ```bash
 python -m src.training.train_cvae \
     --data_root data/processed \
-    --exercise  squat \
     --epochs    50 \
-    --ckpt_dir  checkpoints/cvae_squat
-# bench / deadlift / ohp도 동일하게 실행
+    --ckpt_dir  checkpoints/cvae
 ```
 
 ### Step 5 — BC-STNF 학습
 
 ```bash
+# 전종목 통합
 python -m src.training.train_bc_stnf \
     --data_root data/processed \
-    --exercise  squat \
     --epochs    30 \
-    --ckpt_dir  checkpoints/bc_stnf_squat
+    --ckpt_dir  checkpoints/bc_stnf
+
+# 종목별 분리 (Ablation 5용)
+python -m src.training.train_bc_stnf \
+    --data_root    data/processed \
+    --epochs       30 \
+    --per_exercise \
+    --ckpt_dir     checkpoints
 ```
 
 ### Step 6 — Ablation 변형 모델 학습
 
 ```bash
-# no_cond / mlp_feat / cluster_cond / raw_flow / no_body_cvae
 for VARIANT in no_cond mlp_feat cluster_cond raw_flow no_body_cvae; do
     python -m src.training.train_ablation \
         --data_root data/processed \
@@ -229,16 +223,31 @@ python -m src.data.label_tier3 \
 ### Step 8 — Ablation 평가
 
 ```bash
-# Synthetic OOD 기반 평가
+# 실제 라벨 평가 (Tier2 test set)
 python -m src.evaluation.ablation \
-    --processed_dir data/processed \
-    --ckpt_dir      checkpoints \
-    --out           results/ablation.json
+    --data_root   data/processed \
+    --ckpt_dir    checkpoints \
+    --tier3_root  data/test \
+    --labels_path data/test/labels.json
+
+# Synthetic OOD 평가 (2단계)
+python -m src.data.dist_synth_eval \
+    --processed_root data/processed \
+    --tier3_root     data/test \
+    --output_dir     results/ood
+
+python -m src.evaluation.ablation \
+    --data_root   data/processed \
+    --ckpt_dir    checkpoints \
+    --tier3_root  results/ood \
+    --labels_path results/ood/labels.json \
+    --max_per_class 200
 
 # 점수 분포 분석
 python -m src.evaluation.score_dist \
-    --processed_dir data/processed \
-    --ckpt_dir      checkpoints/bc_stnf_squat
+    --ckpt        checkpoints/cvae/best.pt \
+    --tier3_root  data/test \
+    --labels_path data/test/labels.json
 ```
 
 ---
