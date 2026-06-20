@@ -26,7 +26,7 @@ GitHub: https://github.com/Hyun0930/Bodyfit.git
 ZIP 파일에 포함된 것:
   - 소스코드 전체 (src/, app.py, static/, scripts/)
   - 체크포인트 (checkpoints/cvae/, checkpoints/no_body_cvae/,
-                 checkpoints/bc_stnf_squat/bench/deadlift/ohp/,
+                 checkpoints/bc_stnf/, checkpoints/bc_stnf_squat/bench/deadlift/ohp/,
                  checkpoints/cluster_cond/, checkpoints/mlp_feat/,
                  checkpoints/no_cond/)
   - 데모 영상 (demo/squat/, bench/, deadlift/, ohp/)
@@ -113,19 +113,38 @@ ZIP 압축 해제 후 디렉토리 구조:
   done
 
 
-▶ Tier2 평가 (Synthetic OOD + 실제 라벨)
+▶ 실제 라벨 평가 (Tier2 test set)
 --------------------------------------------------------------
   python -m src.evaluation.ablation \
-      --processed_dir data/processed \
-      --ckpt_dir      checkpoints \
-      --out           results/ablation.json
+      --data_root   data/processed \
+      --ckpt_dir    checkpoints \
+      --tier3_root  data/test \
+      --labels_path data/test/labels.json
+
+
+▶ Synthetic OOD 평가 (2단계)
+--------------------------------------------------------------
+  # 1단계: 합성 이상 데이터 생성
+  python -m src.data.dist_synth_eval \
+      --processed_root data/processed \
+      --tier3_root     data/test \
+      --output_dir     results/ood
+
+  # 2단계: 생성된 OOD 데이터로 Ablation 평가
+  python -m src.evaluation.ablation \
+      --data_root   data/processed \
+      --ckpt_dir    checkpoints \
+      --tier3_root  results/ood \
+      --labels_path results/ood/labels.json \
+      --max_per_class 200
 
 
 ▶ 점수 분포 분석
 --------------------------------------------------------------
   python -m src.evaluation.score_dist \
-      --processed_dir data/processed \
-      --ckpt_dir      checkpoints/cvae
+      --ckpt        checkpoints/cvae/best.pt \
+      --tier3_root  data/test \
+      --labels_path data/test/labels.json
 
 
 ================================================================
