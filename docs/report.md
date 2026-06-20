@@ -51,12 +51,16 @@
 
 ### 1.3 핵심 차별점
 
-| 차별점 | 설명 |
-|--------|------|
-| Body-Conditioned 모델 | 체형 7차원 벡터를 조건 입력으로 개인 맞춤 정상 분포 학습 |
-| Label-free Anomaly Detection | Positive-only 학습, 정상/이상 라벨링 불필요 |
-| Interpretable Feedback | 이상 점수 + 관절별 기여도 heatmap + LLM 자연어 피드백 |
-| 빅4 전종목 지원 | 스쿼트, 벤치프레스, 데드리프트, 오버헤드프레스 |
+기존 자세 평가 시스템과 본 프로젝트의 차별점은 세 가지다.
+
+**① 체형 조건부 학습 (Body-Conditioned)**
+체형 7차원 벡터를 모델의 조건 입력으로 사용하여 P(pose | body)를 학습한다. 동일한 자세라도 체형에 따라 정상 여부가 달라지는 파워리프팅의 특성을 반영한 핵심 설계다.
+
+**② Label-free 이상 탐지**
+선수·가이드 영상만으로 정상 분포를 학습하는 Positive-only 방식을 채택하였다. 이상 자세에 대한 별도 라벨링 없이 학습이 가능하여 데이터 수집 비용을 크게 절감한다.
+
+**③ 해석 가능한 피드백**
+이상 점수 수치 외에 관절별 기여도 heatmap과 GPT-4o 기반 한국어 자연어 피드백을 함께 제공하여, 사용자가 어느 관절에서 문제가 발생했는지 직관적으로 파악할 수 있다.
 
 ---
 
@@ -207,7 +211,7 @@ feat' = γ(c) ⊙ feat + β(c)
 
 ### 4.3 Tier 2 — 평가 데이터
 
-일반 YouTube 영상에서 오류 동작을 포함한 영상을 수집하였다. GPT-4o API로 종목별 기준에 따라 초안 라벨링(0=정상, 1=이상)을 생성하고, 수동 검수를 거쳐 최종 라벨을 확정하였다. 라벨링 기준은 자세 평가 기준(무릎 cave-in, 허리 라운딩, 엉덩이 상승 등)을 종목별로 GPT-4o 시스템 프롬프트에 명시하였다.
+일반 YouTube 영상에서 오류 동작을 포함한 영상을 수집하였다. 수집 검색어는 종목별 오류 관련 키워드를 사용하였다 (예: "squat form check beginner", "squat bad form correction", "deadlift back rounding fix" 등, 상세 쿼리는 `src/data/crawl.py`의 `TIER3_QUERIES` 참고). GPT-4o API로 종목별 기준에 따라 초안 라벨링(0=정상, 1=이상)을 생성하고, 수동 검수를 거쳐 최종 라벨을 확정하였다. 라벨링 기준은 자세 평가 기준(무릎 cave-in, 허리 라운딩, 엉덩이 상승 등)을 종목별로 GPT-4o 시스템 프롬프트에 명시하였다.
 
 | 종목 | 정상 reps | 이상 reps | 총 reps |
 |------|----------|----------|--------|
@@ -245,12 +249,12 @@ body = [
 
 MediaPipe BlazePose Tasks API를 사용하여 영상의 각 프레임에서 33개 keypoint를 추출한다. 각 keypoint는 `(x, y, z, visibility)` 4차원으로 구성되며, 출력은 `(T, 33, 4)` 형태다. (`T`: 총 프레임 수)
 
-```
-원본 영상 (mp4)  →  MediaPipe BlazePose  →  (T, 33, 4)
-                                              x, y: 정규화 좌표 [0, 1]
-                                              z: 엉덩이 기준 깊이
-                                              visibility: 관절 가시성 [0, 1]
-```
+원본 영상(mp4) → MediaPipe BlazePose → 출력: **(T, 33, 4)**
+
+각 keypoint의 4개 채널:
+- **x, y**: 프레임 내 정규화 좌표 [0, 1]
+- **z**: 엉덩이 중심 기준 깊이
+- **visibility**: 관절 가시성 [0, 1]
 
 - **MediaPipe 버전 이슈**: 0.10+ 이후 `mp.solutions` API가 제거되어 Tasks API + `.task` 모델 파일 방식으로 전면 교체하였다. `pose_landmarker_heavy.task` 모델(가장 정확도 높은 variant)을 사용한다.
 
@@ -709,15 +713,15 @@ checkpoints/는 볼륨 마운트로 컨테이너 외부에서 관리한다. `dem
 
 ### 10.5 데모 결과
 
-| 영상 | 종목 | 총 rep | 이상 rep | 평균 점수 |
-|------|------|--------|---------|---------|
-| normal_squat.mp4 | Squat | - | 0 | 낮음 |
-| normal_bench.mp4 | Bench | - | 0 | 낮음 |
-| abnormal_deadlift.mp4 | Deadlift | 6 | 1 | 1.03 (이상 rep: 2.39) |
-| normal_ohp.mp4 | OHP | 6 | 0 | 1.09 |
-| abnormal_ohp.mp4 | OHP | 2 | 2 | 45.79 |
+| 영상 | 종목 | 정상 비율 | 이상 비율 | 비고 |
+|------|------|---------|---------|------|
+| normal_squat.mp4 | Squat | 60% | 40% | 단일 영상, 혼합 결과 |
+| normal_bench.mp4 | Bench | 80% | 20% | 단일 영상, 혼합 결과 |
+| abnormal_deadlift.mp4 | Deadlift | 5/6 rep 정상 | 1/6 rep 이상 | score 2.39 (threshold 초과) |
+| normal_ohp.mp4 | OHP | 6/6 rep 정상 | 0 | 평균 점수 1.09 |
+| abnormal_ohp.mp4 | OHP | 0 | 2/2 rep 이상 | 평균 점수 45.79 |
 
-threshold = 1.8715 기준으로 정상/이상이 구분된다.
+threshold = 1.8715 기준으로 정상/이상이 구분된다. 스쿼트·벤치 영상은 정상 자세 중심이나 일부 rep에서 이상이 탐지되어 실제 운동 영상의 자연스러운 자세 변동을 반영한다.
 
 ---
 

@@ -81,6 +81,30 @@ echo "OPENAI_API_KEY=sk-..." > .env
 
 ---
 
+## 데이터 & 체크포인트 다운로드
+
+학습 데이터(`processed/`), 평가셋(`test/`), 체크포인트(`checkpoints/`)는 Google Drive에서 다운로드:
+
+**[BodyFit_Data Google Drive](https://drive.google.com/drive/folders/1xGLGuo-CpdrVnBgGrH6HrbjtcSpZx3_9?usp=drive_link)**
+
+```
+BodyFit_Data/
+├── checkpoints/   # 학습된 모델 (CVAE, BC-STNF, Ablation 변형)
+├── processed/     # 전처리 완료 학습 데이터 (90,514 reps, .npz)
+└── test/          # Tier2 평가셋 + labels.json (1,619 reps)
+```
+
+다운로드 후 프로젝트 루트에 위치:
+```bash
+bodyfit/
+├── checkpoints/   # Drive에서 다운로드
+├── data/
+│   ├── processed/ # Drive에서 다운로드
+│   └── test/      # Drive에서 다운로드
+```
+
+---
+
 ## 디렉토리 구조
 
 ```
